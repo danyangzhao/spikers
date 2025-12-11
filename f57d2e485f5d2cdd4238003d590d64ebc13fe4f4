@@ -1,0 +1,9 @@
+AI Notes:
+
+app/page.tsx: +5[0],+104-111[0] -103[0]
+package.json: +13[1]
+
+Conversations:
+
+[0]: 1410165c-2353-48c1-ac83-50b190ef765e; Replace existing logo; claude-4.5-opus-high-thinking;
+[1]: 82083d84-76f1-4f20-b67a-bd47e896749a; Understand project overview; composer-1;
