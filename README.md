@@ -1,36 +1,147 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏐 Spikers
+
+A mobile-first web app for tracking Spikeball sessions, scores, and stats with friends.
+
+## Features
+
+- **Player Management**: Add players with custom emojis, track ratings
+- **Session Tracking**: Schedule sessions, manage RSVPs, track attendance
+- **Game Recording**: Random team generation, score tracking, ELO rating updates
+- **Stats & Awards**: Partner chemistry, nemesis opponents, session awards
+- **Badges**: Earn achievements for milestones and streaks
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: PostgreSQL via Prisma
+- **Deployment**: Railway
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+
+- PostgreSQL database (or use Railway's built-in Postgres)
+
+### Local Development
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo-url>
+cd spikers
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up your environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your DATABASE_URL
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Set up the database:
+```bash
+npx prisma db push
+npx prisma db seed
+```
 
-## Learn More
+5. Start the development server:
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+6. Open [http://localhost:3000](http://localhost:3000)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database Commands
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Generate Prisma client
+npm run db:generate
 
-## Deploy on Vercel
+# Push schema changes (development)
+npm run db:push
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Create migrations (production-ready)
+npm run db:migrate
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Seed badges into database
+npm run db:seed
+
+# Open Prisma Studio
+npm run db:studio
+```
+
+## Deployment to Railway
+
+1. Create a new project on [Railway](https://railway.app)
+
+2. Add a PostgreSQL database to your project
+
+3. Connect your GitHub repository
+
+4. Railway will automatically:
+   - Detect Next.js
+   - Build the app
+   - Run migrations and seed badges
+   - Deploy
+
+5. Set any additional environment variables if needed:
+   - `NEXT_PUBLIC_APP_URL` - Your Railway app URL
+
+## Project Structure
+
+```
+spikers/
+├── app/
+│   ├── api/           # API routes
+│   │   ├── players/   # Player CRUD & stats
+│   │   ├── sessions/  # Sessions, RSVP, attendance, games
+│   │   ├── games/     # Game management
+│   │   └── badges/    # Badge listing
+│   ├── players/       # Player pages
+│   ├── sessions/      # Session pages
+│   └── page.tsx       # Home page
+├── components/        # Reusable UI components
+├── lib/
+│   ├── prisma.ts      # Prisma client
+│   ├── teams.ts       # Random team generator
+│   ├── elo.ts         # ELO rating calculations
+│   └── stats.ts       # Stats & badge computation
+└── prisma/
+    ├── schema.prisma  # Database schema
+    └── seed.ts        # Badge seeding
+```
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/players` | GET, POST | List/create players |
+| `/api/players/[id]` | GET, PATCH | Get/update player |
+| `/api/players/[id]/stats` | GET | Get player stats |
+| `/api/sessions` | GET, POST | List/create sessions |
+| `/api/sessions/[id]` | GET, PATCH | Get/update session |
+| `/api/sessions/[id]/rsvp` | GET, POST | Manage RSVPs |
+| `/api/sessions/[id]/attendance` | GET, POST | Manage attendance |
+| `/api/sessions/[id]/games` | GET, POST | List/add games |
+| `/api/sessions/[id]/summary` | GET | Get session awards |
+| `/api/games/[id]` | PATCH, DELETE | Edit/delete game |
+| `/api/badges` | GET | List all badges |
+
+## Badges
+
+- 🐦 **Early Bird** - Attended 3 consecutive sessions
+- 🏃 **Marathoner** - Played 10+ games in a single session
+- 🦋 **Social Butterfly** - Played with 5+ different teammates in one session
+- 🔥 **Streak Beast** - 5+ session attendance streak
+- 💯 **Century Club** - Played 100 total games
+- 🏆 **First Win** - Won your first game
+- 👑 **Undefeated** - Won all games in a session (min 3 games)
+
+## License
+
+MIT

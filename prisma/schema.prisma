@@ -1,0 +1,125 @@
+// Prisma schema for Spikers app
+// PostgreSQL on Railway
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  emoji     String
+  createdAt DateTime @default(now())
+  isActive  Boolean  @default(true)
+  rating    Int      @default(1000)
+
+  attendances   Attendance[]
+  rsvps         RSVP[]
+  teamAGames    Game[]          @relation("TeamAPlayers")
+  teamBGames    Game[]          @relation("TeamBPlayers")
+  ratingHistory RatingHistory[]
+  playerBadges  PlayerBadge[]
+}
+
+model Session {
+  id        String        @id @default(cuid())
+  date      DateTime
+  location  String?
+  createdAt DateTime      @default(now())
+  status    SessionStatus @default(UPCOMING)
+
+  attendances   Attendance[]
+  rsvps         RSVP[]
+  games         Game[]
+  ratingHistory RatingHistory[]
+}
+
+enum SessionStatus {
+  UPCOMING
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Attendance {
+  id        String  @id @default(cuid())
+  sessionId String
+  playerId  String
+  present   Boolean @default(true)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId])
+}
+
+enum RSVPStatus {
+  GOING
+  MAYBE
+  OUT
+}
+
+model RSVP {
+  id        String     @id @default(cuid())
+  sessionId String
+  playerId  String
+  status    RSVPStatus
+  updatedAt DateTime   @default(now()) @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId])
+}
+
+model Game {
+  id        String   @id @default(cuid())
+  sessionId String
+  scoreA    Int
+  scoreB    Int
+  createdAt DateTime @default(now())
+
+  session      Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  teamAPlayers Player[]        @relation("TeamAPlayers")
+  teamBPlayers Player[]        @relation("TeamBPlayers")
+  ratingHistory RatingHistory[]
+}
+
+model RatingHistory {
+  id           String   @id @default(cuid())
+  playerId     String
+  sessionId    String
+  gameId       String?
+  ratingBefore Int
+  ratingAfter  Int
+  createdAt    DateTime @default(now())
+
+  player  Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  game    Game?    @relation(fields: [gameId], references: [id], onDelete: SetNull)
+}
+
+model Badge {
+  id          String        @id @default(cuid())
+  code        String        @unique
+  name        String
+  description String
+  iconEmoji   String
+  playerBadges PlayerBadge[]
+}
+
+model PlayerBadge {
+  id        String   @id @default(cuid())
+  playerId  String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  badge  Badge  @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, badgeId])
+}
