@@ -91,6 +91,7 @@ export default function HomePage() {
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
+      timeZone: 'UTC',
     })
   }
 
