@@ -233,6 +233,28 @@ export default function SessionDetailPage({
     }
   }
 
+  async function handleDeleteSession() {
+    const confirmMessage = session?.games.length 
+      ? `Delete this session and all ${session.games.length} game(s)? Player ratings will be reverted.`
+      : 'Delete this session?'
+    
+    if (!confirm(confirmMessage)) return
+
+    try {
+      const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        // Navigate back to sessions list
+        window.location.href = '/sessions'
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to delete session')
+      }
+    } catch (error) {
+      console.error('Failed to delete session:', error)
+      alert('Failed to delete session')
+    }
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
@@ -282,6 +304,13 @@ export default function SessionDetailPage({
             <p className="text-sm text-[var(--foreground-muted)]">📍 {session.location}</p>
           )}
         </div>
+        <button
+          onClick={handleDeleteSession}
+          className="btn btn-ghost p-2 text-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/10"
+          title="Delete session"
+        >
+          🗑️
+        </button>
       </div>
 
       {/* Status Controls */}

@@ -95,3 +95,58 @@ export async function PATCH(
   }
 }
 
+// DELETE /api/sessions/[id] - Delete a session
+export async function DELETE(
+  request: NextRequest,
+  { params }: RouteParams
+) {
+  const { id } = await params
+
+  try {
+    // Get the session with its games to revert ratings
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        games: {
+          include: {
+            ratingHistory: true,
+          },
+        },
+      },
+    })
+
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      )
+    }
+
+    // Revert all rating changes from this session's games
+    await prisma.$transaction(async (tx) => {
+      // For each game, revert player ratings
+      for (const game of session.games) {
+        for (const history of game.ratingHistory) {
+          await tx.player.update({
+            where: { id: history.playerId },
+            data: { rating: history.ratingBefore },
+          })
+        }
+      }
+
+      // Delete the session (cascade will delete games, attendances, rsvps, ratingHistory)
+      await tx.session.delete({
+        where: { id },
+      })
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting session:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete session', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
+
