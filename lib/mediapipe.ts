@@ -16,6 +16,8 @@ import {
 // Singleton instance of the pose landmarker
 let poseLandmarker: PoseLandmarker | null = null
 let isInitializing = false
+let lastTimestamp = 0 // Track last timestamp to ensure monotonic increase
+let isDetecting = false // Prevent concurrent detection calls
 
 // Model URL - using the lite model for faster loading
 const MODEL_URL =
@@ -98,56 +100,75 @@ export async function detectPoses(
   video: HTMLVideoElement,
   timestampMs: number
 ): Promise<DetectedPerson[]> {
-  const landmarker = await initializePoseLandmarker()
+  // Prevent concurrent detection calls
+  if (isDetecting) {
+    console.log('Detection already in progress, skipping')
+    return []
+  }
+  
+  isDetecting = true
+  
+  try {
+    const landmarker = await initializePoseLandmarker()
 
-  // Detect poses in the current frame
-  const result: PoseLandmarkerResult = landmarker.detectForVideo(
-    video,
-    timestampMs
-  )
-
-  // Convert to simplified format
-  return result.landmarks.map((landmarks) => {
-    // Calculate center from hip landmarks (11 and 12 are left/right hip)
-    const leftHip = landmarks[23]
-    const rightHip = landmarks[24]
-    const nose = landmarks[0]
-
-    // Use hip center as the person's position (more stable than other points)
-    const centerX = (leftHip.x + rightHip.x) / 2
-    const centerY = (leftHip.y + rightHip.y) / 2
-
-    // Calculate bounding box from all landmarks
-    const xs = landmarks.map((l) => l.x)
-    const ys = landmarks.map((l) => l.y)
-    const minX = Math.min(...xs)
-    const maxX = Math.max(...xs)
-    const minY = Math.min(...ys)
-    const maxY = Math.max(...ys)
-
-    // Average visibility as confidence
-    const confidence =
-      landmarks.reduce((sum, l) => sum + (l.visibility ?? 0), 0) /
-      landmarks.length
-
-    return {
-      x: centerX,
-      y: centerY,
-      boundingBox: {
-        x: minX,
-        y: minY,
-        width: maxX - minX,
-        height: maxY - minY,
-      },
-      confidence,
-      landmarks: landmarks.map((l) => ({
-        x: l.x,
-        y: l.y,
-        z: l.z,
-        visibility: l.visibility ?? 0,
-      })),
+    // MediaPipe requires strictly increasing timestamps
+    // Ensure timestamp is always greater than the last one
+    let safeTimestamp = Math.floor(timestampMs)
+    if (safeTimestamp <= lastTimestamp) {
+      safeTimestamp = lastTimestamp + 1
     }
-  })
+    lastTimestamp = safeTimestamp
+
+    // Detect poses in the current frame
+    const result: PoseLandmarkerResult = landmarker.detectForVideo(
+      video,
+      safeTimestamp
+    )
+
+    // Convert to simplified format
+    return result.landmarks.map((landmarks) => {
+      // Calculate center from hip landmarks (11 and 12 are left/right hip)
+      const leftHip = landmarks[23]
+      const rightHip = landmarks[24]
+
+      // Use hip center as the person's position (more stable than other points)
+      const centerX = (leftHip.x + rightHip.x) / 2
+      const centerY = (leftHip.y + rightHip.y) / 2
+
+      // Calculate bounding box from all landmarks
+      const xs = landmarks.map((l) => l.x)
+      const ys = landmarks.map((l) => l.y)
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      const minY = Math.min(...ys)
+      const maxY = Math.max(...ys)
+
+      // Average visibility as confidence
+      const confidence =
+        landmarks.reduce((sum, l) => sum + (l.visibility ?? 0), 0) /
+        landmarks.length
+
+      return {
+        x: centerX,
+        y: centerY,
+        boundingBox: {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+        },
+        confidence,
+        landmarks: landmarks.map((l) => ({
+          x: l.x,
+          y: l.y,
+          z: l.z,
+          visibility: l.visibility ?? 0,
+        })),
+      }
+    })
+  } finally {
+    isDetecting = false
+  }
 }
 
 /**
@@ -223,4 +244,5 @@ export function cleanup(): void {
     poseLandmarker.close()
     poseLandmarker = null
   }
+  lastTimestamp = 0 // Reset timestamp tracker
 }

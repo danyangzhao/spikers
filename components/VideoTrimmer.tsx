@@ -133,6 +133,7 @@ export default function VideoTrimmer({
         <video
           ref={videoRef}
           src={videoUrl}
+          crossOrigin="anonymous"
           className="w-full aspect-video"
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}

@@ -131,6 +131,7 @@ body {
 .input {
   width: 100%;
   padding: 0.75rem 1rem;
+  min-height: 48px; /* Ensure minimum touch target size */
   background: var(--background-elevated);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
@@ -138,10 +139,22 @@ body {
   font-size: 1rem;
   outline: none;
   transition: border-color 0.2s ease;
+  -webkit-appearance: none; /* Fix iOS styling */
+  -moz-appearance: textfield; /* Fix Firefox number input spinners */
+  appearance: none;
+  touch-action: manipulation; /* Prevent zoom on double-tap */
+}
+
+/* Hide number input spinners for cleaner look */
+.input[type="number"]::-webkit-inner-spin-button,
+.input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .input:focus {
   border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2); /* Add visible focus ring */
 }
 
 .input::placeholder {

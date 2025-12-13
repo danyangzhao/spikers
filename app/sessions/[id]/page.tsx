@@ -542,9 +542,12 @@ export default function SessionDetailPage({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={scoreA}
                     onChange={(e) => setScoreA(e.target.value)}
                     className="input text-center text-xl"
+                    placeholder="0"
                     min="0"
                     required
                   />
@@ -555,9 +558,12 @@ export default function SessionDetailPage({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={scoreB}
                     onChange={(e) => setScoreB(e.target.value)}
                     className="input text-center text-xl"
+                    placeholder="0"
                     min="0"
                     required
                   />

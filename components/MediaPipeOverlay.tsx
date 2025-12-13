@@ -37,8 +37,11 @@ export default function MediaPipeOverlay({
 }: MediaPipeOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [detectedPeople, setDetectedPeople] = useState<DetectedPerson[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isInitialized, setIsInitialized] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Only enable click capture when onPersonClick is provided
+  const enableClickCapture = !!onPersonClick
   const lastTrackTimeRef = useRef<number>(0)
   const animationFrameRef = useRef<number | null>(null)
 
@@ -76,8 +79,8 @@ export default function MediaPipeOverlay({
     lastTrackTimeRef.current = currentTime
 
     try {
-      setIsLoading(false)
       const people = await detectPoses(video, currentTime)
+      setIsInitialized(true)
       setDetectedPeople(people)
 
       // Update player positions based on proximity tracking
@@ -131,6 +134,25 @@ export default function MediaPipeOverlay({
     }
   }, [videoRef, isPlaying, taggedPlayers, trackingInterval, onPlayerPositionsUpdate])
 
+  // Run detection once when video is ready (even if paused)
+  const detectOnce = useCallback(async () => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+
+    if (!video || !canvas || video.readyState < 2) return // Need at least HAVE_CURRENT_DATA
+
+    try {
+      const currentTime = video.currentTime * 1000
+      const people = await detectPoses(video, currentTime)
+      setIsInitialized(true)
+      setDetectedPeople(people)
+      drawOverlay(canvas, video, people)
+      console.log('Detected', people.length, 'people (single detection)')
+    } catch (err) {
+      console.error('MediaPipe detection error:', err)
+    }
+  }, [videoRef])
+
   // Start/stop tracking when playing state changes
   useEffect(() => {
     if (isPlaying) {
@@ -139,6 +161,8 @@ export default function MediaPipeOverlay({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
       }
+      // Run detection once when paused (so we can click on detected people)
+      detectOnce()
     }
 
     return () => {
@@ -146,7 +170,31 @@ export default function MediaPipeOverlay({
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isPlaying, trackFrame])
+  }, [isPlaying, trackFrame, detectOnce])
+
+  // Run detection when video becomes ready (loadeddata event)
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const handleLoadedData = () => {
+      console.log('Video loaded, running initial detection')
+      detectOnce()
+    }
+
+    // If video is already ready, detect now
+    if (video.readyState >= 2) {
+      detectOnce()
+    }
+
+    video.addEventListener('loadeddata', handleLoadedData)
+    video.addEventListener('seeked', detectOnce) // Also detect after seeking
+
+    return () => {
+      video.removeEventListener('loadeddata', handleLoadedData)
+      video.removeEventListener('seeked', detectOnce)
+    }
+  }, [videoRef, detectOnce])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -269,42 +317,73 @@ export default function MediaPipeOverlay({
     const clickX = (e.clientX - rect.left) / rect.width
     const clickY = (e.clientY - rect.top) / rect.height
 
-    // Find if click is near a detected person
+    console.log('Canvas click at:', clickX.toFixed(2), clickY.toFixed(2))
+    console.log('Detected people:', detectedPeople.length)
+
+    // Find if click is inside a detected person's bounding box
+    for (const person of detectedPeople) {
+      const box = person.boundingBox
+      // Add some padding to make clicking easier
+      const padding = 0.02
+      const inBox = (
+        clickX >= box.x - padding &&
+        clickX <= box.x + box.width + padding &&
+        clickY >= box.y - padding &&
+        clickY <= box.y + box.height + padding
+      )
+
+      console.log('Person box:', box, 'Click in box:', inBox)
+
+      if (inBox) {
+        console.log('Clicked on person!')
+        onPersonClick(person, clickX, clickY)
+        return
+      }
+    }
+
+    // Fallback: if no bounding box match, try distance to center (larger threshold)
     for (const person of detectedPeople) {
       const dx = person.x - clickX
       const dy = person.y - clickY
       const dist = Math.sqrt(dx * dx + dy * dy)
 
-      if (dist < 0.1) {
+      if (dist < 0.2) { // Increased threshold
+        console.log('Clicked near person center!')
         onPersonClick(person, clickX, clickY)
         return
       }
     }
+
+    console.log('Click did not match any person')
   }
 
   return (
-    <div className="relative">
+    <div className="absolute inset-0 pointer-events-none">
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-auto cursor-crosshair"
-        onClick={handleCanvasClick}
+        className={`absolute inset-0 w-full h-full ${
+          enableClickCapture ? 'pointer-events-auto cursor-crosshair' : 'pointer-events-none'
+        }`}
+        onClick={enableClickCapture ? handleCanvasClick : undefined}
       />
       
-      {isLoading && (
-        <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+      {isPlaying && !isInitialized && (
+        <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded pointer-events-none">
           Loading MediaPipe...
         </div>
       )}
 
       {error && (
-        <div className="absolute top-2 left-2 bg-red-500/70 text-white text-xs px-2 py-1 rounded">
+        <div className="absolute top-2 left-2 bg-red-500/70 text-white text-xs px-2 py-1 rounded pointer-events-none">
           {error}
         </div>
       )}
 
-      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-        {detectedPeople.length} person(s) detected
-      </div>
+      {isInitialized && (
+        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded pointer-events-none">
+          {detectedPeople.length} person(s) detected
+        </div>
+      )}
     </div>
   )
 }

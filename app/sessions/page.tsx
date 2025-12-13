@@ -57,8 +57,8 @@ export default function SessionsPage() {
       })
 
       if (res.ok) {
-        const newSession = await res.json()
-        setSessions([newSession, ...sessions])
+        // Re-fetch to get the session with _count included
+        await fetchSessions()
         setNewDate('')
         setNewLocation('')
         setShowAddForm(false)

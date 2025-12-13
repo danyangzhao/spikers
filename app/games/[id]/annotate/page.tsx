@@ -77,6 +77,12 @@ export default function AnnotatePage({
 
   // Setup state
   const [selectedPlayerForTag, setSelectedPlayerForTag] = useState<string | null>(null)
+  const [tagConfirmation, setTagConfirmation] = useState<{
+    x: number
+    y: number
+    playerName: string
+    color: string
+  } | null>(null)
 
   // Annotation state
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -88,6 +94,15 @@ export default function AnnotatePage({
 
   // Player positions from MediaPipe
   const [playerPositions, setPlayerPositions] = useState<Map<string, { x: number; y: number }>>(new Map())
+  
+  // Accumulate position data for batch saving
+  const positionBufferRef = useRef<Array<{
+    frameTime: number
+    playerId: string
+    x: number
+    y: number
+  }>>([])
+  const lastSaveTimeRef = useRef<number>(0)
 
   const fetchGame = useCallback(async () => {
     try {
@@ -247,7 +262,23 @@ export default function AnnotatePage({
   }
 
   const handlePersonClick = (person: DetectedPerson) => {
-    if (selectedPlayerForTag) {
+    if (selectedPlayerForTag && allPlayers) {
+      const player = allPlayers.find(p => p.id === selectedPlayerForTag)
+      const playerIndex = allPlayers.findIndex(p => p.id === selectedPlayerForTag)
+      
+      if (player) {
+        // Show confirmation animation
+        setTagConfirmation({
+          x: person.x,
+          y: person.y,
+          playerName: `${player.emoji} ${player.name}`,
+          color: PLAYER_COLORS[playerIndex % PLAYER_COLORS.length],
+        })
+        
+        // Clear confirmation after animation
+        setTimeout(() => setTagConfirmation(null), 1500)
+      }
+      
       handleTagPlayer(selectedPlayerForTag, person.x, person.y)
     }
   }
@@ -307,7 +338,71 @@ export default function AnnotatePage({
     }
   }
 
+  // Save accumulated position data to the database
+  const savePositionBuffer = useCallback(async () => {
+    if (positionBufferRef.current.length === 0) return
+    
+    const positions = [...positionBufferRef.current]
+    positionBufferRef.current = [] // Clear buffer
+    
+    try {
+      const annotations = positions.map(pos => ({
+        frameTime: pos.frameTime,
+        type: 'PLAYER_POSITION',
+        playerId: pos.playerId,
+        x: pos.x,
+        y: pos.y,
+      }))
+      
+      await fetch(`/api/games/${gameId}/video/annotations/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ annotations }),
+      })
+      
+      console.log(`Saved ${annotations.length} position annotations`)
+    } catch (err) {
+      console.error('Failed to save positions:', err)
+      // Re-add to buffer on failure
+      positionBufferRef.current = [...positions, ...positionBufferRef.current]
+    }
+  }, [gameId])
+
+  // Handle position updates from MediaPipe
+  const handlePlayerPositionsUpdate = useCallback((positions: Map<string, { x: number; y: number }>) => {
+    setPlayerPositions(positions)
+    
+    // Add positions to buffer with current video time
+    const currentVideoTime = videoRef.current?.currentTime || 0
+    
+    positions.forEach((pos, playerId) => {
+      positionBufferRef.current.push({
+        frameTime: currentVideoTime,
+        playerId,
+        x: pos.x,
+        y: pos.y,
+      })
+    })
+    
+    // Save buffer every 5 seconds
+    const now = Date.now()
+    if (now - lastSaveTimeRef.current > 5000) {
+      lastSaveTimeRef.current = now
+      savePositionBuffer()
+    }
+  }, [savePositionBuffer])
+
+  // Save remaining positions when video pauses or component unmounts
+  useEffect(() => {
+    if (!isPlaying && positionBufferRef.current.length > 0) {
+      savePositionBuffer()
+    }
+  }, [isPlaying, savePositionBuffer])
+
   const handleMarkComplete = async () => {
+    // Save any remaining position data first
+    await savePositionBuffer()
+    
     try {
       await fetch(`/api/games/${gameId}/video`, {
         method: 'PATCH',
@@ -459,22 +554,59 @@ export default function AnnotatePage({
 
             {/* Video with MediaPipe overlay */}
             <div className="relative bg-black rounded-lg overflow-hidden mb-4 aspect-video">
-              <video
-                ref={videoRef}
-                src={video.playbackUrl}
-                className="w-full h-full"
-                onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                controls
-                playsInline
-              />
+            <video
+              ref={videoRef}
+              src={video.playbackUrl}
+              crossOrigin="anonymous"
+              className="w-full h-full"
+              onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              controls
+              playsInline
+            />
               <MediaPipeOverlay
                 videoRef={videoRef}
                 isPlaying={isPlaying}
                 taggedPlayers={taggedPlayers}
-                onPersonClick={handlePersonClick}
+                onPersonClick={selectedPlayerForTag ? handlePersonClick : undefined}
               />
+              
+              {/* Tag confirmation animation */}
+              {tagConfirmation && (
+                <div 
+                  className="absolute pointer-events-none animate-ping"
+                  style={{
+                    left: `${tagConfirmation.x * 100}%`,
+                    top: `${tagConfirmation.y * 100}%`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  <div 
+                    className="w-16 h-16 rounded-full border-4 opacity-75"
+                    style={{ borderColor: tagConfirmation.color }}
+                  />
+                </div>
+              )}
+              
+              {/* Tag confirmation label */}
+              {tagConfirmation && (
+                <div 
+                  className="absolute pointer-events-none animate-bounce"
+                  style={{
+                    left: `${tagConfirmation.x * 100}%`,
+                    top: `${tagConfirmation.y * 100}%`,
+                    transform: 'translate(-50%, -120%)',
+                  }}
+                >
+                  <div 
+                    className="px-3 py-1 rounded-full text-sm font-bold text-black whitespace-nowrap"
+                    style={{ backgroundColor: tagConfirmation.color }}
+                  >
+                    ✓ {tagConfirmation.playerName}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Player selection buttons */}
@@ -538,6 +670,7 @@ export default function AnnotatePage({
             <video
               ref={videoRef}
               src={video.playbackUrl}
+              crossOrigin="anonymous"
               className="w-full h-full"
               onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
               onPlay={() => setIsPlaying(true)}
@@ -548,7 +681,7 @@ export default function AnnotatePage({
               videoRef={videoRef}
               isPlaying={isPlaying}
               taggedPlayers={taggedPlayers}
-              onPlayerPositionsUpdate={setPlayerPositions}
+              onPlayerPositionsUpdate={handlePlayerPositionsUpdate}
             />
           </div>
 
@@ -615,9 +748,14 @@ export default function AnnotatePage({
             <AnnotationToolbar
               players={allPlayers}
               currentMode={annotationMode}
-              onModeChange={setAnnotationMode}
+              onModeChange={(mode) => {
+                // Auto-pause video when starting to annotate
+                if (mode !== 'none' && videoRef.current && !videoRef.current.paused) {
+                  videoRef.current.pause()
+                }
+                setAnnotationMode(mode)
+              }}
               onAnnotate={handleAnnotate}
-              disabled={isPlaying}
               recentAnnotations={recentAnnotations.map((a) => ({
                 type: a.type,
                 playerName: a.player?.name,
