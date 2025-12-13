@@ -10,6 +10,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "start:full": "bash .cursor/commands/start-app.sh",
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",

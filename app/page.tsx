@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 interface Session {
   id: string
@@ -100,7 +101,14 @@ export default function HomePage() {
       {/* Header - Always visible immediately */}
       <div className="text-center py-4">
         <h1 className="text-3xl font-bold mb-1">
-          <span className="text-4xl">🏐</span> Spikers
+          <Image
+            src="/spikers-logo.png"
+            alt="Spikers logo"
+            width={40}
+            height={40}
+            className="inline-block align-middle"
+          />{' '}
+          Spikers
         </h1>
         <p className="text-[var(--foreground-muted)]">
           Track your Spikeball glory
