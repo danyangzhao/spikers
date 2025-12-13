@@ -18,12 +18,14 @@ model Player {
   isActive  Boolean  @default(true)
   rating    Int      @default(1000)
 
-  attendances   Attendance[]
-  rsvps         RSVP[]
-  teamAGames    Game[]          @relation("TeamAPlayers")
-  teamBGames    Game[]          @relation("TeamBPlayers")
-  ratingHistory RatingHistory[]
-  playerBadges  PlayerBadge[]
+  attendances      Attendance[]
+  rsvps            RSVP[]
+  teamAGames       Game[]            @relation("TeamAPlayers")
+  teamBGames       Game[]            @relation("TeamBPlayers")
+  ratingHistory    RatingHistory[]
+  playerBadges     PlayerBadge[]
+  videoTags        VideoPlayerTag[]
+  videoAnnotations VideoAnnotation[]
 }
 
 model Session {
@@ -83,10 +85,11 @@ model Game {
   scoreB    Int
   createdAt DateTime @default(now())
 
-  session      Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  teamAPlayers Player[]        @relation("TeamAPlayers")
-  teamBPlayers Player[]        @relation("TeamBPlayers")
+  session       Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  teamAPlayers  Player[]        @relation("TeamAPlayers")
+  teamBPlayers  Player[]        @relation("TeamBPlayers")
   ratingHistory RatingHistory[]
+  video         GameVideo?
 }
 
 model RatingHistory {
@@ -122,4 +125,101 @@ model PlayerBadge {
   badge  Badge  @relation(fields: [badgeId], references: [id], onDelete: Cascade)
 
   @@unique([playerId, badgeId])
+}
+
+// ============================================
+// Video Analysis Models
+// ============================================
+
+model GameVideo {
+  id       String @id @default(cuid())
+  gameId   String @unique
+  game     Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  s3Key    String // S3 object key
+  s3Bucket String // S3 bucket name
+
+  startTime Float? // Trimmed start (seconds)
+  endTime   Float? // Trimmed end (seconds)
+  duration  Float? // Total duration
+
+  // Net position (marked once, normalized 0-1 coords)
+  netX1 Float?
+  netY1 Float?
+  netX2 Float?
+  netY2 Float?
+
+  status    VideoStatus @default(UPLOADED)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  annotations VideoAnnotation[]
+  playerTags  VideoPlayerTag[]
+}
+
+enum VideoStatus {
+  UPLOADING
+  UPLOADED
+  SETUP_COMPLETE // Players and net tagged
+  ANNOTATED
+  ERROR
+}
+
+// Links detected MediaPipe skeletons to actual players
+model VideoPlayerTag {
+  id       String    @id @default(cuid())
+  videoId  String
+  video    GameVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Initial position when tagged (for re-identification)
+  initialX Float
+  initialY Float
+
+  // Color assigned for visualization
+  color String
+
+  @@unique([videoId, playerId])
+}
+
+model VideoAnnotation {
+  id       String    @id @default(cuid())
+  videoId  String
+  video    GameVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  frameTime Float          // Timestamp in video (seconds)
+  type      AnnotationType
+  playerId  String?
+  player    Player?        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Position data (normalized 0-1 coordinates) - from MediaPipe
+  x Float?
+  y Float?
+
+  // For spike accuracy: did ball reach net?
+  successful Boolean?
+
+  // For point outcomes: reason
+  reason PointReason?
+
+  createdAt DateTime @default(now())
+}
+
+enum AnnotationType {
+  PLAYER_POSITION // Auto-tracked by MediaPipe
+  PASS            // User clicked "Pass"
+  SPIKE           // User clicked "Spike"
+  POINT_WON       // Point ended - won
+  POINT_LOST      // Point ended - lost
+}
+
+enum PointReason {
+  SERVE_ACE
+  GREAT_SPIKE
+  OPPONENT_ERROR
+  FAILED_RETURN
+  NET_VIOLATION
+  OUT_OF_BOUNDS
+  OTHER
 }
