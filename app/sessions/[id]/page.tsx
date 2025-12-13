@@ -199,6 +199,7 @@ export default function SessionDetailPage({
     setTeamA(shuffled.slice(0, 2))
     setTeamB(shuffled.slice(2, 4))
     setShowAddGame(true)
+    setActiveTab('games') // Switch to Games tab to show the add game form
   }
 
   async function handleAddGame(e: React.FormEvent) {

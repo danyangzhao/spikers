@@ -163,6 +163,12 @@ export default function AnnotatePage({
   useEffect(() => {
     if (step === 'annotate') {
       fetchRecentAnnotations()
+      // Reset isPlaying when entering annotate step since it's a new video element
+      setIsPlaying(false)
+    }
+    if (step === 'complete') {
+      // Reset isPlaying when entering complete step since it's a new video element
+      setIsPlaying(false)
     }
   }, [step, fetchRecentAnnotations])
 
@@ -675,6 +681,7 @@ export default function AnnotatePage({
               onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
+              onLoadedData={() => setIsPlaying(false)}
               playsInline
             />
             <MediaPipeOverlay
@@ -777,23 +784,106 @@ export default function AnnotatePage({
       )}
 
       {/* Step 4: Complete */}
-      {step === 'complete' && (
-        <div className="card p-6 text-center">
-          <p className="text-4xl mb-4">🎉</p>
-          <h3 className="font-semibold mb-2">Annotation Complete!</h3>
-          <p className="text-sm text-[var(--foreground-muted)] mb-4">
-            {annotationCount} annotations recorded
-          </p>
-          <div className="flex gap-2 justify-center">
+      {step === 'complete' && video && (
+        <div className="space-y-4">
+          {/* Success message */}
+          <div className="card p-4 text-center">
+            <p className="text-2xl mb-2">🎉</p>
+            <h3 className="font-semibold">Annotation Complete!</h3>
+            <p className="text-sm text-[var(--foreground-muted)]">
+              {annotationCount} annotations recorded
+            </p>
+          </div>
+
+          {/* Video player with overlay */}
+          <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+            <video
+              ref={videoRef}
+              src={video.playbackUrl}
+              crossOrigin="anonymous"
+              className="w-full h-full"
+              onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onLoadedData={() => setIsPlaying(false)}
+              playsInline
+            />
+            <MediaPipeOverlay
+              videoRef={videoRef}
+              isPlaying={isPlaying}
+              taggedPlayers={taggedPlayers}
+            />
+          </div>
+
+          {/* Video controls */}
+          <div className="card p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-mono">{formatTime(currentTime)}</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (videoRef.current) {
+                      videoRef.current.currentTime = Math.max(0, currentTime - 5)
+                    }
+                  }}
+                  className="btn btn-ghost p-1 text-sm"
+                >
+                  -5s
+                </button>
+                <button
+                  onClick={() => {
+                    if (videoRef.current) {
+                      if (isPlaying) videoRef.current.pause()
+                      else videoRef.current.play()
+                    }
+                  }}
+                  className="btn btn-primary px-4"
+                >
+                  {isPlaying ? '⏸️' : '▶️'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (videoRef.current) {
+                      videoRef.current.currentTime = currentTime + 5
+                    }
+                  }}
+                  className="btn btn-ghost p-1 text-sm"
+                >
+                  +5s
+                </button>
+              </div>
+              <span className="text-sm font-mono text-[var(--foreground-muted)]">
+                {formatTime(video.duration || 0)}
+              </span>
+            </div>
+
+            {/* Timeline scrubber */}
+            <input
+              type="range"
+              min={video.startTime || 0}
+              max={video.endTime || video.duration || 100}
+              step={0.1}
+              value={currentTime}
+              onChange={(e) => {
+                if (videoRef.current) {
+                  videoRef.current.currentTime = parseFloat(e.target.value)
+                }
+              }}
+              className="w-full"
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
             <button
               onClick={() => setStep('annotate')}
-              className="btn btn-secondary"
+              className="btn btn-secondary flex-1"
             >
               ✏️ Edit Annotations
             </button>
             <Link
               href={`/sessions/${game?.session?.id || ''}`}
-              className="btn btn-primary"
+              className="btn btn-primary flex-1"
             >
               ← Back to Session
             </Link>
