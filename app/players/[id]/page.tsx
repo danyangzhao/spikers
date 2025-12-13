@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import BadgeGrid from '@/components/BadgeGrid'
+import { VideoStatsGrid, PointBreakdown } from '@/components/VideoStatsCard'
 
 interface PlayerStats {
   player: {
@@ -57,6 +58,22 @@ interface Badge {
   iconEmoji: string
 }
 
+interface VideoStats {
+  gamesAnalyzed: number
+  totalAnnotations: number
+  lateralDistance: { distanceFeet: number; distanceMiles: number }
+  passCount: { avgPassesPerRally: number; totalPasses: number; totalRallies: number }
+  spikeAccuracy: { successful: number; total: number; percentage: number }
+  pointOutcomes: {
+    won: Record<string, number>
+    lost: Record<string, number>
+    totalWon: number
+    totalLost: number
+    total: number
+    winPercentage: number
+  }
+}
+
 export default function PlayerProfilePage({ 
   params 
 }: { 
@@ -64,16 +81,18 @@ export default function PlayerProfilePage({
 }) {
   const { id } = use(params)
   const [stats, setStats] = useState<PlayerStats | null>(null)
+  const [videoStats, setVideoStats] = useState<VideoStats | null>(null)
   const [allBadges, setAllBadges] = useState<Badge[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'stats' | 'chemistry' | 'badges'>('stats')
+  const [activeTab, setActiveTab] = useState<'stats' | 'video' | 'chemistry' | 'badges'>('stats')
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, badgesRes] = await Promise.all([
+        const [statsRes, badgesRes, videoStatsRes] = await Promise.all([
           fetch(`/api/players/${id}/stats`),
           fetch('/api/badges'),
+          fetch(`/api/players/${id}/video-stats`),
         ])
 
         if (statsRes.ok) {
@@ -81,6 +100,9 @@ export default function PlayerProfilePage({
         }
         if (badgesRes.ok) {
           setAllBadges(await badgesRes.json())
+        }
+        if (videoStatsRes.ok) {
+          setVideoStats(await videoStatsRes.json())
         }
       } catch (error) {
         console.error('Failed to fetch player stats:', error)
@@ -142,7 +164,7 @@ export default function PlayerProfilePage({
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {(['stats', 'chemistry', 'badges'] as const).map((tab) => (
+        {(['stats', 'video', 'chemistry', 'badges'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -151,6 +173,7 @@ export default function PlayerProfilePage({
             } whitespace-nowrap`}
           >
             {tab === 'stats' && '📊 Stats'}
+            {tab === 'video' && '📹 Video'}
             {tab === 'chemistry' && '🤝 Chemistry'}
             {tab === 'badges' && '🏅 Badges'}
           </button>
@@ -192,6 +215,35 @@ export default function PlayerProfilePage({
               icon={lifetimeStats.avgPointDiff >= 0 ? '⬆️' : '⬇️'}
             />
           </div>
+        </div>
+      )}
+
+      {/* Video Stats Tab */}
+      {activeTab === 'video' && (
+        <div className="space-y-4 animate-fade-in">
+          {videoStats && videoStats.gamesAnalyzed > 0 ? (
+            <>
+              <VideoStatsGrid
+                lateralDistance={videoStats.lateralDistance}
+                passCount={videoStats.passCount}
+                spikeAccuracy={videoStats.spikeAccuracy}
+                pointOutcomes={videoStats.pointOutcomes}
+                gamesAnalyzed={videoStats.gamesAnalyzed}
+              />
+              <PointBreakdown
+                won={videoStats.pointOutcomes.won}
+                lost={videoStats.pointOutcomes.lost}
+              />
+            </>
+          ) : (
+            <div className="card p-6 text-center">
+              <p className="text-4xl mb-4">📹</p>
+              <h3 className="font-semibold mb-2">No Video Stats Yet</h3>
+              <p className="text-sm text-[var(--foreground-muted)]">
+                Upload and annotate game videos to see detailed performance metrics.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
