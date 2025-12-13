@@ -5,6 +5,43 @@ interface RouteParams {
   params: Promise<{ id: string }>
 }
 
+// GET /api/games/[id] - Get a single game with details
+export async function GET(
+  request: NextRequest,
+  { params }: RouteParams
+) {
+  const { id } = await params
+
+  try {
+    const game = await prisma.game.findUnique({
+      where: { id },
+      include: {
+        teamAPlayers: true,
+        teamBPlayers: true,
+        session: {
+          select: {
+            id: true,
+            date: true,
+            status: true,
+          },
+        },
+      },
+    })
+
+    if (!game) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+    }
+
+    return NextResponse.json(game)
+  } catch (error) {
+    console.error('Error fetching game:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch game' },
+      { status: 500 }
+    )
+  }
+}
+
 // PATCH /api/games/[id] - Update a game (scores only for simplicity)
 export async function PATCH(
   request: NextRequest,

@@ -6,12 +6,18 @@ import PlayerChip from '@/components/PlayerChip'
 import GameCard from '@/components/GameCard'
 import RSVPButton from '@/components/RSVPButton'
 import SessionAwards from '@/components/SessionAwards'
+import VideoUpload from '@/components/VideoUpload'
 
 interface Player {
   id: string
   name: string
   emoji: string
   rating: number
+}
+
+interface GameVideo {
+  id: string
+  status: string
 }
 
 interface Game {
@@ -21,6 +27,7 @@ interface Game {
   teamAPlayers: Player[]
   teamBPlayers: Player[]
   createdAt: string
+  video?: GameVideo | null
 }
 
 interface Session {
@@ -72,6 +79,9 @@ export default function SessionDetailPage({
   const [teamB, setTeamB] = useState<string[]>([])
   const [scoreA, setScoreA] = useState('')
   const [scoreB, setScoreB] = useState('')
+  
+  // Video upload state
+  const [uploadingVideoForGame, setUploadingVideoForGame] = useState<string | null>(null)
 
   const fetchSession = useCallback(async () => {
     try {
@@ -588,20 +598,40 @@ export default function SessionDetailPage({
           ) : (
             <div className="space-y-3">
               {session.games.map((game, index) => (
-                <GameCard
-                  key={game.id}
-                  id={game.id}
-                  teamA={game.teamAPlayers}
-                  teamB={game.teamBPlayers}
-                  scoreA={game.scoreA}
-                  scoreB={game.scoreB}
-                  gameNumber={index + 1}
-                  onDelete={
-                    session.status === 'IN_PROGRESS'
-                      ? () => handleDeleteGame(game.id)
-                      : undefined
-                  }
-                />
+                <div key={game.id}>
+                  <GameCard
+                    id={game.id}
+                    teamA={game.teamAPlayers}
+                    teamB={game.teamBPlayers}
+                    scoreA={game.scoreA}
+                    scoreB={game.scoreB}
+                    gameNumber={index + 1}
+                    hasVideo={!!game.video}
+                    videoStatus={game.video?.status}
+                    onDelete={
+                      session.status === 'IN_PROGRESS'
+                        ? () => handleDeleteGame(game.id)
+                        : undefined
+                    }
+                    onUploadVideo={
+                      session.status !== 'UPCOMING'
+                        ? () => setUploadingVideoForGame(game.id)
+                        : undefined
+                    }
+                  />
+                  {uploadingVideoForGame === game.id && (
+                    <div className="mt-2">
+                      <VideoUpload
+                        gameId={game.id}
+                        onUploadComplete={() => {
+                          setUploadingVideoForGame(null)
+                          fetchSession()
+                        }}
+                        onCancel={() => setUploadingVideoForGame(null)}
+                      />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

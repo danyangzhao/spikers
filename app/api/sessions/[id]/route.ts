@@ -26,6 +26,12 @@ export async function GET(
         include: {
           teamAPlayers: true,
           teamBPlayers: true,
+          video: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
         },
         orderBy: { createdAt: 'asc' },
       },

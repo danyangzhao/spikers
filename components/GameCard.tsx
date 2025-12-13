@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import PlayerChip from './PlayerChip'
 
 interface Player {
@@ -13,16 +14,23 @@ interface GameCardProps {
   scoreA: number
   scoreB: number
   gameNumber?: number
+  hasVideo?: boolean
+  videoStatus?: string
   onDelete?: () => void
+  onUploadVideo?: () => void
 }
 
 export default function GameCard({
+  id,
   teamA,
   teamB,
   scoreA,
   scoreB,
   gameNumber,
+  hasVideo,
+  videoStatus,
   onDelete,
+  onUploadVideo,
 }: GameCardProps) {
   const teamAWon = scoreA > scoreB
   const teamBWon = scoreB > scoreA
@@ -31,15 +39,39 @@ export default function GameCard({
     <div className="card p-4 animate-fade-in">
       {gameNumber && (
         <div className="text-xs text-[var(--foreground-muted)] mb-3 flex items-center justify-between">
-          <span>Game {gameNumber}</span>
-          {onDelete && (
-            <button
-              onClick={onDelete}
-              className="text-[var(--accent-danger)] hover:text-red-400 transition-colors"
-            >
-              Delete
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <span>Game {gameNumber}</span>
+            {hasVideo && (
+              <span className="text-[var(--accent-primary)]" title={`Video: ${videoStatus}`}>
+                📹
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {hasVideo ? (
+              <Link
+                href={`/games/${id}/annotate`}
+                className="text-[var(--accent-primary)] hover:text-blue-400 transition-colors"
+              >
+                {videoStatus === 'ANNOTATED' ? 'View' : 'Annotate'}
+              </Link>
+            ) : onUploadVideo ? (
+              <button
+                onClick={onUploadVideo}
+                className="text-[var(--accent-primary)] hover:text-blue-400 transition-colors"
+              >
+                📹 Add Video
+              </button>
+            ) : null}
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                className="text-[var(--accent-danger)] hover:text-red-400 transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
         </div>
       )}
       
