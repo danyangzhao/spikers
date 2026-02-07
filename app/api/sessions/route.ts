@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { sendPushToAllDevices } from '@/lib/apns'
 
 // GET /api/sessions - List all sessions
 export async function GET(request: NextRequest) {
@@ -51,6 +52,28 @@ export async function POST(request: NextRequest) {
         location: location || null,
         status: 'UPCOMING',
       },
+    })
+
+    // Send push notification to all registered devices
+    // We use a friendly date format for the notification message
+    const sessionDate = new Date(date)
+    const dateStr = sessionDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'UTC',
+    })
+    const locationStr = location ? ` at ${location}` : ''
+
+    // Fire and forget — don't block the API response waiting for notifications
+    sendPushToAllDevices(
+      'New Session! 🏐',
+      `A session has been scheduled for ${dateStr}${locationStr}. RSVP now!`,
+      { sessionId: session.id }
+    ).catch((err) => {
+      console.error('Failed to send push notifications:', err)
     })
 
     return NextResponse.json(session, { status: 201 })

@@ -128,6 +128,18 @@ model PlayerBadge {
 }
 
 // ============================================
+// Push Notification Models
+// ============================================
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  token     String   @unique  // The APNs device token (hex string)
+  platform  String   @default("ios") // "ios" for now, could add "android" later
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
 // Video Analysis Models
 // ============================================
 

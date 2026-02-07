@@ -29,6 +29,7 @@
     "@aws-sdk/s3-request-presigner": "^3.948.0",
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "@prisma/client": "^6.19.1",
+    "jsonwebtoken": "^9.0.3",
     "next": "16.0.8",
     "prisma": "^6.19.1",
     "react": "19.2.1",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
