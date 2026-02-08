@@ -5,6 +5,7 @@ import {
   getPartnerChemistry,
   getNemesisOpponents,
   getAttendanceStreak,
+  getBadgeProgress,
 } from '@/lib/stats'
 
 interface RouteParams {
@@ -35,13 +36,15 @@ export async function GET(
     )
   }
 
-  // Get all stats
-  const [lifetimeStats, partnerChemistry, nemesisOpponents, attendanceStreak] =
+  // Get all stats and badge data
+  const [lifetimeStats, partnerChemistry, nemesisOpponents, attendanceStreak, allBadges, badgeProgress] =
     await Promise.all([
       getPlayerLifetimeStats(id),
       getPartnerChemistry(id),
       getNemesisOpponents(id),
       getAttendanceStreak(id),
+      prisma.badge.findMany({ orderBy: { name: 'asc' } }),
+      getBadgeProgress(id),
     ])
 
   return NextResponse.json({
@@ -64,6 +67,8 @@ export async function GET(
       iconEmoji: pb.badge.iconEmoji,
       earnedAt: pb.earnedAt,
     })),
+    allBadges,
+    badgeProgress,
   })
 }
 

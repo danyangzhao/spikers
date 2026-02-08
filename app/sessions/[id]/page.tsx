@@ -58,6 +58,12 @@ interface SummaryData {
   playerOfTheDay: { id: string; name: string; emoji: string; wins: number } | null
   ironman: { id: string; name: string; emoji: string; gamesPlayed: number } | null
   socialButterfly: { id: string; name: string; emoji: string; uniqueTeammates: number } | null
+  clutchPlayer: { id: string; name: string; emoji: string; closeGameWins: number } | null
+  theWall: { id: string; name: string; emoji: string; avgPointsAgainst: number } | null
+  hotStreak: { id: string; name: string; emoji: string; streak: number } | null
+  closestGame: { gameNumber: number; scoreA: number; scoreB: number } | null
+  biggestBlowout: { gameNumber: number; scoreA: number; scoreB: number } | null
+  highlights: string[]
 }
 
 export default function SessionDetailPage({ 
@@ -652,6 +658,9 @@ export default function SessionDetailPage({
             playerOfTheDay={summaryData.playerOfTheDay}
             ironman={summaryData.ironman}
             socialButterfly={summaryData.socialButterfly}
+            clutchPlayer={summaryData.clutchPlayer}
+            theWall={summaryData.theWall}
+            hotStreak={summaryData.hotStreak}
             totalGames={summaryData.totalGames}
           />
         </div>

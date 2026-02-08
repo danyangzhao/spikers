@@ -8,6 +8,9 @@ interface SessionAwardsProps {
   playerOfTheDay?: (PlayerInfo & { wins: number }) | null
   ironman?: (PlayerInfo & { gamesPlayed: number }) | null
   socialButterfly?: (PlayerInfo & { uniqueTeammates: number }) | null
+  clutchPlayer?: (PlayerInfo & { closeGameWins: number }) | null
+  theWall?: (PlayerInfo & { avgPointsAgainst: number }) | null
+  hotStreak?: (PlayerInfo & { streak: number }) | null
   totalGames: number
 }
 
@@ -15,6 +18,9 @@ export default function SessionAwards({
   playerOfTheDay,
   ironman,
   socialButterfly,
+  clutchPlayer,
+  theWall,
+  hotStreak,
   totalGames,
 }: SessionAwardsProps) {
   if (totalGames === 0) {
@@ -48,6 +54,27 @@ export default function SessionAwards({
       player: socialButterfly,
       stat: `${socialButterfly.uniqueTeammates} teammates`,
       gradient: 'from-pink-500/20 to-rose-500/20',
+    },
+    clutchPlayer && {
+      title: 'Clutch Player',
+      emoji: '🎯',
+      player: clutchPlayer,
+      stat: `${clutchPlayer.closeGameWins} close wins`,
+      gradient: 'from-emerald-500/20 to-teal-500/20',
+    },
+    theWall && {
+      title: 'The Wall',
+      emoji: '🧱',
+      player: theWall,
+      stat: `${theWall.avgPointsAgainst} avg pts against`,
+      gradient: 'from-slate-500/20 to-gray-500/20',
+    },
+    hotStreak && {
+      title: 'Hot Streak',
+      emoji: '🔥',
+      player: hotStreak,
+      stat: `${hotStreak.streak} wins in a row`,
+      gradient: 'from-red-500/20 to-amber-500/20',
     },
   ].filter(Boolean)
 
