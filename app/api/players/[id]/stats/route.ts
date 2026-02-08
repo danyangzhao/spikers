@@ -6,6 +6,7 @@ import {
   getNemesisOpponents,
   getAttendanceStreak,
   getBadgeProgress,
+  awardNewBadges,
 } from '@/lib/stats'
 
 interface RouteParams {
@@ -19,7 +20,11 @@ export async function GET(
 ) {
   const { id } = await params
 
-  // Verify player exists
+  // Award any badges the player has earned but hasn't received yet.
+  // This catches badges missed during session completion (e.g. race conditions).
+  await awardNewBadges(id)
+
+  // Verify player exists (fetched after awarding so new badges are included)
   const player = await prisma.player.findUnique({
     where: { id },
     include: {
