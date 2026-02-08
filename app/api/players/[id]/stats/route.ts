@@ -42,7 +42,7 @@ export async function GET(
   }
 
   // Get all stats and badge data
-  const [lifetimeStats, partnerChemistry, nemesisOpponents, attendanceStreak, allBadges, badgeProgress] =
+  const [lifetimeStats, partnerChemistry, nemesisOpponents, attendanceStreak, allBadges, badgeProgress, totalPlayers, badgeEarnCounts] =
     await Promise.all([
       getPlayerLifetimeStats(id),
       getPartnerChemistry(id),
@@ -50,7 +50,20 @@ export async function GET(
       getAttendanceStreak(id),
       prisma.badge.findMany({ orderBy: { name: 'asc' } }),
       getBadgeProgress(id),
+      prisma.player.count({ where: { isActive: true } }),
+      prisma.playerBadge.groupBy({ by: ['badgeId'], _count: true }),
     ])
+
+  // Build a lookup of badgeId -> number of players who earned it
+  const earnCountMap = new Map(badgeEarnCounts.map((b) => [b.badgeId, b._count]))
+
+  // Enrich each badge with the percentage of players who earned it
+  const allBadgesWithPercent = allBadges.map((badge) => ({
+    ...badge,
+    earnedByPercent: totalPlayers > 0
+      ? Math.round(((earnCountMap.get(badge.id) ?? 0) / totalPlayers) * 100)
+      : 0,
+  }))
 
   return NextResponse.json({
     player: {
@@ -72,7 +85,7 @@ export async function GET(
       iconEmoji: pb.badge.iconEmoji,
       earnedAt: pb.earnedAt,
     })),
-    allBadges,
+    allBadges: allBadgesWithPercent,
     badgeProgress,
   })
 }
