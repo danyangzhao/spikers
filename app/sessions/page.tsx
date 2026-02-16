@@ -51,7 +51,7 @@ export default function SessionsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date: newDate,
+          date: new Date(newDate).toISOString(),
           location: newLocation || null,
         }),
       })
@@ -72,7 +72,6 @@ export default function SessionsPage() {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
-      timeZone: 'UTC',
       month: 'short',
       day: 'numeric',
     })

@@ -1,28 +1,23 @@
 /**
  * Date utilities for consistent timezone handling
- * 
- * The issue: When a user enters "2pm" in their local timezone,
- * the datetime-local input gives us "2024-12-13T14:00" (no timezone).
- * JavaScript's Date constructor treats this as local time, but when
- * stored in PostgreSQL and retrieved, it becomes UTC.
- * 
- * Solution: Display dates using UTC to match what was stored.
+ *
+ * Dates are stored in PostgreSQL as UTC. Both the web and iOS apps
+ * now send proper timezone-aware ISO strings (e.g. "2024-12-13T22:00:00Z"),
+ * so we display them in the user's local timezone.
  */
 
 /**
  * Format a date string for display
- * Uses UTC to ensure consistency across timezones
  */
 export function formatSessionDate(dateString: string): string {
   const date = new Date(dateString)
-  
+
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    timeZone: 'UTC', // Display in UTC to match stored value
   })
 }
 
@@ -31,12 +26,11 @@ export function formatSessionDate(dateString: string): string {
  */
 export function formatSessionDateShort(dateString: string): string {
   const date = new Date(dateString)
-  
+
   return date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-    timeZone: 'UTC',
   })
 }
 
@@ -45,14 +39,12 @@ export function formatSessionDateShort(dateString: string): string {
  */
 export function formatSessionDateTime(dateString: string): string {
   const date = new Date(dateString)
-  
+
   return date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    timeZone: 'UTC',
   })
 }
-

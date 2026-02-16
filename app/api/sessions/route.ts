@@ -61,9 +61,6 @@ export async function POST(request: NextRequest) {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: 'UTC',
     })
     const locationStr = location ? ` at ${location}` : ''
 
