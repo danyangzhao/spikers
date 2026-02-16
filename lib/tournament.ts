@@ -614,13 +614,38 @@ export async function getSessionTournament(sessionId: string) {
 export async function endTournamentEarly(sessionId: string) {
   const tournament = await prisma.tournament.findUnique({ where: { sessionId } })
   if (!tournament) throw new Error('Tournament not found')
-  if (tournament.status !== 'ACTIVE') return tournament
+  if (tournament.status !== 'ACTIVE') {
+    return getSessionTournament(sessionId)
+  }
   return prisma.tournament.update({
     where: { id: tournament.id },
     data: {
       status: 'ENDED',
       stage: TournamentStage.ENDED,
       endedAt: new Date(),
+    },
+    include: {
+      teams: { include: { playerA: true, playerB: true }, orderBy: { seed: 'asc' } },
+      matches: {
+        include: {
+          teamA: { include: { playerA: true, playerB: true } },
+          teamB: { include: { playerA: true, playerB: true } },
+          winnerTeam: { include: { playerA: true, playerB: true } },
+          loserTeam: { include: { playerA: true, playerB: true } },
+          games: {
+            include: {
+              game: {
+                include: {
+                  teamAPlayers: true,
+                  teamBPlayers: true,
+                },
+              },
+            },
+            orderBy: { gameNumber: 'asc' },
+          },
+        },
+        orderBy: [{ stage: 'asc' }, { round: 'asc' }, { slot: 'asc' }],
+      },
     },
   })
 }
