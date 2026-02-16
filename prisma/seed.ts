@@ -5,6 +5,12 @@ const prisma = new PrismaClient()
 const badges = [
   // --- Existing badges ---
   {
+    code: 'TOURNAMENT_WINNER',
+    name: 'Tournament Winner',
+    description: 'Won a tournament',
+    iconEmoji: '🥇',
+  },
+  {
     code: 'EARLY_BIRD',
     name: 'Early Bird',
     description: 'Attended 3 consecutive sessions',

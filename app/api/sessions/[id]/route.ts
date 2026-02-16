@@ -35,6 +35,57 @@ export async function GET(
         },
         orderBy: { createdAt: 'asc' },
       },
+      tournament: {
+        include: {
+          teams: {
+            include: {
+              playerA: true,
+              playerB: true,
+            },
+            orderBy: { seed: 'asc' },
+          },
+          matches: {
+            include: {
+              teamA: {
+                include: {
+                  playerA: true,
+                  playerB: true,
+                },
+              },
+              teamB: {
+                include: {
+                  playerA: true,
+                  playerB: true,
+                },
+              },
+              winnerTeam: {
+                include: {
+                  playerA: true,
+                  playerB: true,
+                },
+              },
+              loserTeam: {
+                include: {
+                  playerA: true,
+                  playerB: true,
+                },
+              },
+              games: {
+                include: {
+                  game: {
+                    include: {
+                      teamAPlayers: true,
+                      teamBPlayers: true,
+                    },
+                  },
+                },
+                orderBy: { gameNumber: 'asc' },
+              },
+            },
+            orderBy: [{ stage: 'asc' }, { round: 'asc' }, { slot: 'asc' }],
+          },
+        },
+      },
     },
   })
 

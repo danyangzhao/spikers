@@ -500,6 +500,22 @@ export async function checkBadgeEligibility(playerId: string): Promise<string[]>
     eligibleBadges.push('FIRST_WIN')
   }
 
+  // TOURNAMENT_WINNER: Won at least one completed tournament
+  const tournamentWins = await prisma.tournament.count({
+    where: {
+      status: 'COMPLETED',
+      winnerTeam: {
+        OR: [
+          { playerAId: playerId },
+          { playerBId: playerId },
+        ],
+      },
+    },
+  })
+  if (tournamentWins > 0) {
+    eligibleBadges.push('TOURNAMENT_WINNER')
+  }
+
   // CENTURY_CLUB: 100 total games
   if (stats.gamesPlayed >= 100) {
     eligibleBadges.push('CENTURY_CLUB')
@@ -748,6 +764,7 @@ export async function getBadgeProgress(playerId: string): Promise<{ code: string
   const maxOpponentGames = opponentGames.size > 0 ? Math.max(...opponentGames.values()) : 0
 
   return [
+    { code: 'TOURNAMENT_WINNER', current: 0, target: 1 },
     { code: 'FIRST_WIN', current: Math.min(stats.wins, 1), target: 1 },
     { code: 'VETERAN', current: Math.min(stats.gamesPlayed, 25), target: 25 },
     { code: 'HALF_CENTURY', current: Math.min(stats.gamesPlayed, 50), target: 50 },

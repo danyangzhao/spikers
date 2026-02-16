@@ -26,6 +26,8 @@ model Player {
   playerBadges     PlayerBadge[]
   videoTags        VideoPlayerTag[]
   videoAnnotations VideoAnnotation[]
+  tournamentTeamsA TournamentTeam[]  @relation("TournamentTeamPlayerA")
+  tournamentTeamsB TournamentTeam[]  @relation("TournamentTeamPlayerB")
 }
 
 model Session {
@@ -39,6 +41,7 @@ model Session {
   rsvps         RSVP[]
   games         Game[]
   ratingHistory RatingHistory[]
+  tournament    Tournament?
 }
 
 enum SessionStatus {
@@ -90,6 +93,126 @@ model Game {
   teamBPlayers  Player[]        @relation("TeamBPlayers")
   ratingHistory RatingHistory[]
   video         GameVideo?
+  tournamentMatchGames TournamentMatchGame[]
+}
+
+model Tournament {
+  id             String             @id @default(cuid())
+  sessionId      String             @unique
+  status         TournamentStatus   @default(ACTIVE)
+  teamMode       TournamentTeamMode
+  stage          TournamentStage    @default(ROUND_ROBIN)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  endedAt        DateTime?
+  winnerTeamId   String?
+  specialMode    TournamentSpecialMode @default(NONE)
+
+  session        Session            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  winnerTeam     TournamentTeam?    @relation("TournamentWinningTeam", fields: [winnerTeamId], references: [id], onDelete: SetNull)
+  teams          TournamentTeam[]
+  matches        TournamentMatch[]
+}
+
+model TournamentTeam {
+  id           String       @id @default(cuid())
+  tournamentId String
+  name         String
+  seed         Int
+  wins         Int          @default(0)
+  losses       Int          @default(0)
+  isEliminated Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+
+  playerAId    String
+  playerBId    String?
+
+  tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  playerA      Player       @relation("TournamentTeamPlayerA", fields: [playerAId], references: [id], onDelete: Cascade)
+  playerB      Player?      @relation("TournamentTeamPlayerB", fields: [playerBId], references: [id], onDelete: Cascade)
+
+  matchesAsTeamA TournamentMatch[] @relation("TournamentMatchTeamA")
+  matchesAsTeamB TournamentMatch[] @relation("TournamentMatchTeamB")
+  winsInMatches TournamentMatch[]  @relation("TournamentMatchWinner")
+  lossesInMatches TournamentMatch[] @relation("TournamentMatchLoser")
+  wonTournaments Tournament[]      @relation("TournamentWinningTeam")
+}
+
+model TournamentMatch {
+  id           String               @id @default(cuid())
+  tournamentId String
+  stage        TournamentMatchStage
+  round        Int
+  slot         Int
+  bestOf       Int                  @default(3)
+  winsA        Int                  @default(0)
+  winsB        Int                  @default(0)
+  isComplete   Boolean              @default(false)
+  metadata     Json?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  teamAId      String?
+  teamBId      String?
+  winnerTeamId String?
+  loserTeamId  String?
+
+  teamAPlayerIds String[]
+  teamBPlayerIds String[]
+
+  tournament   Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamA        TournamentTeam?      @relation("TournamentMatchTeamA", fields: [teamAId], references: [id], onDelete: SetNull)
+  teamB        TournamentTeam?      @relation("TournamentMatchTeamB", fields: [teamBId], references: [id], onDelete: SetNull)
+  winnerTeam   TournamentTeam?      @relation("TournamentMatchWinner", fields: [winnerTeamId], references: [id], onDelete: SetNull)
+  loserTeam    TournamentTeam?      @relation("TournamentMatchLoser", fields: [loserTeamId], references: [id], onDelete: SetNull)
+  games        TournamentMatchGame[]
+
+  @@index([tournamentId, stage, round, slot])
+}
+
+model TournamentMatchGame {
+  id                String          @id @default(cuid())
+  tournamentMatchId String
+  gameId            String
+  gameNumber        Int
+  createdAt         DateTime        @default(now())
+
+  tournamentMatch   TournamentMatch @relation(fields: [tournamentMatchId], references: [id], onDelete: Cascade)
+  game              Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentMatchId, gameId])
+  @@unique([tournamentMatchId, gameNumber])
+}
+
+enum TournamentStatus {
+  ACTIVE
+  COMPLETED
+  ENDED
+}
+
+enum TournamentTeamMode {
+  RANDOM
+  FAIR
+}
+
+enum TournamentStage {
+  ROUND_ROBIN
+  BRACKET
+  FINALS
+  COMPLETED
+  ENDED
+}
+
+enum TournamentMatchStage {
+  ROUND_ROBIN
+  BRACKET
+  WINNERS_FINAL
+  LOSERS_FINAL
+}
+
+enum TournamentSpecialMode {
+  NONE
+  MIXED_ROUND_ROBIN
 }
 
 model RatingHistory {
