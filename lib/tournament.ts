@@ -271,7 +271,26 @@ export async function setupTournament(sessionId: string, mode: TournamentTeamMod
       where: { id: tournament.id },
       include: {
         teams: { include: { playerA: true, playerB: true }, orderBy: { seed: 'asc' } },
-        matches: { include: { games: true }, orderBy: [{ stage: 'asc' }, { round: 'asc' }, { slot: 'asc' }] },
+        matches: {
+          include: {
+            teamA: { include: { playerA: true, playerB: true } },
+            teamB: { include: { playerA: true, playerB: true } },
+            winnerTeam: { include: { playerA: true, playerB: true } },
+            loserTeam: { include: { playerA: true, playerB: true } },
+            games: {
+              include: {
+                game: {
+                  include: {
+                    teamAPlayers: true,
+                    teamBPlayers: true,
+                  },
+                },
+              },
+              orderBy: { gameNumber: 'asc' },
+            },
+          },
+          orderBy: [{ stage: 'asc' }, { round: 'asc' }, { slot: 'asc' }],
+        },
       },
     })
   })
@@ -535,7 +554,17 @@ export async function recordTournamentGame(input: {
           teamB: { include: { playerA: true, playerB: true } },
           winnerTeam: { include: { playerA: true, playerB: true } },
           loserTeam: { include: { playerA: true, playerB: true } },
-          games: { include: { game: true }, orderBy: { gameNumber: 'asc' } },
+          games: {
+            include: {
+              game: {
+                include: {
+                  teamAPlayers: true,
+                  teamBPlayers: true,
+                },
+              },
+            },
+            orderBy: { gameNumber: 'asc' },
+          },
         },
         orderBy: [{ stage: 'asc' }, { round: 'asc' }, { slot: 'asc' }],
       },
