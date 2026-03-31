@@ -446,15 +446,29 @@ export async function getSessionAwards(sessionId: string) {
       ? { gameNumber: biggestBlowout.gameNumber, scoreA: biggestBlowout.scoreA, scoreB: biggestBlowout.scoreB }
       : null,
     highlights,
-    playerStats: players.map((p) => ({
-      id: p.id,
-      name: p.name,
-      emoji: p.emoji,
-      gamesPlayed: p.gamesPlayed,
-      wins: p.wins,
-      losses: p.losses,
-      pointDiff: p.pointsFor - p.pointsAgainst,
-    })),
+    playerStats: await Promise.all(
+      players.map(async (p) => {
+        const history = await prisma.ratingHistory.findMany({
+          where: { sessionId, playerId: p.id },
+          orderBy: { createdAt: 'asc' },
+        })
+        const ratingChange =
+          history.length > 0
+            ? history[history.length - 1].ratingAfter - history[0].ratingBefore
+            : 0
+
+        return {
+          id: p.id,
+          name: p.name,
+          emoji: p.emoji,
+          gamesPlayed: p.gamesPlayed,
+          wins: p.wins,
+          losses: p.losses,
+          pointDiff: p.pointsFor - p.pointsAgainst,
+          ratingChange,
+        }
+      })
+    ),
   }
 }
 
