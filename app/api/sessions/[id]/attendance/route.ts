@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getGroupId } from '@/lib/group'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -28,6 +29,9 @@ export async function POST(
   const { id } = await params
 
   try {
+    const groupId = getGroupId(request)
+    if (groupId instanceof NextResponse) return groupId
+
     const body = await request.json()
     const { playerIds } = body as { playerIds: string[] }
 
@@ -47,9 +51,8 @@ export async function POST(
       )
     }
 
-    // Get all players to process
     const allPlayers = await prisma.player.findMany({
-      where: { isActive: true },
+      where: { isActive: true, groupId },
     })
 
     // Upsert attendance for each player

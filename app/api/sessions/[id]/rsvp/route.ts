@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getGroupId } from '@/lib/group'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -12,14 +13,16 @@ export async function GET(
 ) {
   const { id } = await params
 
+  const groupId = getGroupId(request)
+  if (groupId instanceof NextResponse) return groupId
+
   const rsvps = await prisma.rSVP.findMany({
     where: { sessionId: id },
     include: { player: true },
   })
 
-  // Get all active players to show who hasn't RSVPed
   const allPlayers = await prisma.player.findMany({
-    where: { isActive: true },
+    where: { isActive: true, groupId },
     orderBy: { name: 'asc' },
   })
 
