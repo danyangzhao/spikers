@@ -571,13 +571,17 @@ export async function recordTournamentGame(input: {
     },
   })
   if (result?.status === 'COMPLETED' && result.winnerTeamId) {
-    const winnerTeam = await prisma.tournamentTeam.findUnique({ where: { id: result.winnerTeamId } })
-    if (winnerTeam) {
-      await awardNewBadges(winnerTeam.playerAId)
+    const winnerTeamId = result.winnerTeamId
+    prisma.tournamentTeam.findUnique({ where: { id: winnerTeamId } }).then((winnerTeam) => {
+      if (!winnerTeam) return
+      const promises = [awardNewBadges(winnerTeam.playerAId)]
       if (winnerTeam.playerBId) {
-        await awardNewBadges(winnerTeam.playerBId)
+        promises.push(awardNewBadges(winnerTeam.playerBId))
       }
-    }
+      return Promise.all(promises)
+    }).catch((err) => {
+      console.error('Background badge award failed:', err)
+    })
   }
   return result
 }

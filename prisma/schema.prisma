@@ -10,6 +10,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Group {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  players   Player[]
+  sessions  Session[]
+}
+
 model Player {
   id        String   @id @default(cuid())
   name      String
@@ -17,6 +25,9 @@ model Player {
   createdAt DateTime @default(now())
   isActive  Boolean  @default(true)
   rating    Int      @default(1000)
+
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   attendances      Attendance[]
   rsvps            RSVP[]
@@ -28,6 +39,8 @@ model Player {
   videoAnnotations VideoAnnotation[]
   tournamentTeamsA TournamentTeam[]  @relation("TournamentTeamPlayerA")
   tournamentTeamsB TournamentTeam[]  @relation("TournamentTeamPlayerB")
+
+  @@index([groupId])
 }
 
 model Session {
@@ -37,11 +50,16 @@ model Session {
   createdAt DateTime      @default(now())
   status    SessionStatus @default(UPCOMING)
 
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
   attendances   Attendance[]
   rsvps         RSVP[]
   games         Game[]
   ratingHistory RatingHistory[]
   tournament    Tournament?
+
+  @@index([groupId])
 }
 
 enum SessionStatus {
@@ -94,6 +112,8 @@ model Game {
   ratingHistory RatingHistory[]
   video         GameVideo?
   tournamentMatchGames TournamentMatchGame[]
+
+  @@index([sessionId])
 }
 
 model Tournament {
@@ -227,6 +247,9 @@ model RatingHistory {
   player  Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   game    Game?    @relation(fields: [gameId], references: [id], onDelete: SetNull)
+
+  @@index([playerId])
+  @@index([sessionId])
 }
 
 model Badge {

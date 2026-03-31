@@ -134,12 +134,11 @@ export async function PATCH(
       },
     })
 
-    // If session just completed, award badges to all attendees
     if (status === 'COMPLETED' && currentSession.status !== 'COMPLETED') {
       const attendeeIds = currentSession.attendances.map((a) => a.playerId)
-      for (const playerId of attendeeIds) {
-        await awardNewBadges(playerId)
-      }
+      Promise.all(attendeeIds.map((playerId) => awardNewBadges(playerId))).catch((err) => {
+        console.error('Background badge award failed:', err)
+      })
     }
 
     return NextResponse.json(session)

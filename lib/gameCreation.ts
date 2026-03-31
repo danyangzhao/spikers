@@ -22,18 +22,15 @@ export async function createSessionGameWithElo(input: CreateSessionGameInput) {
     throw new Error('Games cannot end in a tie')
   }
 
-  const session = await prisma.session.findUnique({ where: { id: sessionId } })
+  const [session, teamAPlayers, teamBPlayers] = await Promise.all([
+    prisma.session.findUnique({ where: { id: sessionId } }),
+    prisma.player.findMany({ where: { id: { in: teamAPlayerIds } } }),
+    prisma.player.findMany({ where: { id: { in: teamBPlayerIds } } }),
+  ])
+
   if (!session) {
     throw new Error('Session not found')
   }
-
-  const teamAPlayers = await prisma.player.findMany({
-    where: { id: { in: teamAPlayerIds } },
-  })
-  const teamBPlayers = await prisma.player.findMany({
-    where: { id: { in: teamBPlayerIds } },
-  })
-
   if (teamAPlayers.length !== teamAPlayerIds.length || teamBPlayers.length !== teamBPlayerIds.length) {
     throw new Error('One or more players were not found')
   }
@@ -64,22 +61,26 @@ export async function createSessionGameWithElo(input: CreateSessionGameInput) {
       },
     })
 
-    for (const update of [...teamAUpdates, ...teamBUpdates]) {
-      await tx.player.update({
-        where: { id: update.playerId },
-        data: { rating: update.ratingAfter },
-      })
+    const allUpdates = [...teamAUpdates, ...teamBUpdates]
 
-      await tx.ratingHistory.create({
-        data: {
-          playerId: update.playerId,
-          sessionId,
-          gameId: newGame.id,
-          ratingBefore: update.ratingBefore,
-          ratingAfter: update.ratingAfter,
-        },
-      })
-    }
+    await Promise.all(
+      allUpdates.map((update) =>
+        tx.player.update({
+          where: { id: update.playerId },
+          data: { rating: update.ratingAfter },
+        })
+      )
+    )
+
+    await tx.ratingHistory.createMany({
+      data: allUpdates.map((update) => ({
+        playerId: update.playerId,
+        sessionId,
+        gameId: newGame.id,
+        ratingBefore: update.ratingBefore,
+        ratingAfter: update.ratingAfter,
+      })),
+    })
 
     return newGame
   })

@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getGroupId } from '@/lib/group'
 
 // GET /api/players - List all players
 export async function GET(request: NextRequest) {
   try {
+    const groupId = getGroupId(request)
+    if (groupId instanceof NextResponse) return groupId
+
     const { searchParams } = new URL(request.url)
     const activeOnly = searchParams.get('activeOnly') !== 'false'
 
     const players = await prisma.player.findMany({
-      where: activeOnly ? { isActive: true } : undefined,
+      where: {
+        groupId,
+        ...(activeOnly ? { isActive: true } : {}),
+      },
       orderBy: { name: 'asc' },
     })
 
@@ -25,6 +32,9 @@ export async function GET(request: NextRequest) {
 // POST /api/players - Create a new player
 export async function POST(request: NextRequest) {
   try {
+    const groupId = getGroupId(request)
+    if (groupId instanceof NextResponse) return groupId
+
     const body = await request.json()
     const { name, emoji } = body
 
@@ -39,6 +49,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         emoji: emoji || '🏐',
+        groupId,
       },
     })
 

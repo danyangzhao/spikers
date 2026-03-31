@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPushToAllDevices } from '@/lib/apns'
+import { getGroupId } from '@/lib/group'
 
 // GET /api/sessions - List all sessions
 export async function GET(request: NextRequest) {
   try {
+    const groupId = getGroupId(request)
+    if (groupId instanceof NextResponse) return groupId
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const limit = searchParams.get('limit')
 
     const sessions = await prisma.session.findMany({
-      where: status ? { status: status as 'UPCOMING' | 'IN_PROGRESS' | 'COMPLETED' } : undefined,
+      where: {
+        groupId,
+        ...(status ? { status: status as 'UPCOMING' | 'IN_PROGRESS' | 'COMPLETED' } : {}),
+      },
       orderBy: { date: 'desc' },
       take: limit ? parseInt(limit) : undefined,
       include: {
@@ -36,6 +43,9 @@ export async function GET(request: NextRequest) {
 // POST /api/sessions - Create a new session
 export async function POST(request: NextRequest) {
   try {
+    const groupId = getGroupId(request)
+    if (groupId instanceof NextResponse) return groupId
+
     const body = await request.json()
     const { date, location } = body
 
@@ -51,11 +61,10 @@ export async function POST(request: NextRequest) {
         date: new Date(date),
         location: location || null,
         status: 'UPCOMING',
+        groupId,
       },
     })
 
-    // Send push notification to all registered devices
-    // We use a friendly date format for the notification message
     const sessionDate = new Date(date)
     const dateStr = sessionDate.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -64,7 +73,6 @@ export async function POST(request: NextRequest) {
     })
     const locationStr = location ? ` at ${location}` : ''
 
-    // Fire and forget — don't block the API response waiting for notifications
     sendPushToAllDevices(
       'New Session! 🏐',
       `A session has been scheduled for ${dateStr}${locationStr}. RSVP now!`,
