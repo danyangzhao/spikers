@@ -185,9 +185,41 @@ export async function sendPushToAllDevices(
   body: string,
   data: Record<string, string> = {}
 ): Promise<number> {
-  // Get all registered device tokens from the database
   const devices = await prisma.deviceToken.findMany()
+  return await sendToDevices(devices, title, body, data)
+}
 
+/**
+ * Send a push notification to all devices belonging to players in a specific group.
+ *
+ * @param groupId - The group whose players should be notified
+ * @param title - The notification title
+ * @param body - The notification body text
+ * @param data - Extra data to include (e.g., { groupMessageId: "abc123" })
+ * @returns Number of successfully sent notifications
+ */
+export async function sendPushToGroup(
+  groupId: string,
+  title: string,
+  body: string,
+  data: Record<string, string> = {}
+): Promise<number> {
+  const devices = await prisma.deviceToken.findMany({
+    where: { groupId },
+  })
+  return await sendToDevices(devices, title, body, data)
+}
+
+/**
+ * Internal helper that sends a push to a list of device token records
+ * and cleans up any tokens that fail (invalid/expired).
+ */
+async function sendToDevices(
+  devices: { id: string; token: string }[],
+  title: string,
+  body: string,
+  data: Record<string, string>
+): Promise<number> {
   if (devices.length === 0) {
     console.log('No device tokens registered — skipping push notification')
     return 0
@@ -195,7 +227,6 @@ export async function sendPushToAllDevices(
 
   console.log(`Sending push notification to ${devices.length} device(s)...`)
 
-  // Send to all devices in parallel
   const results = await Promise.all(
     devices.map(async (device) => {
       const success = await sendPushNotification(
@@ -205,12 +236,11 @@ export async function sendPushToAllDevices(
         data
       )
 
-      // If sending failed (e.g., invalid token), remove the bad token
       if (!success) {
         console.log(`Removing invalid device token: ${device.token.substring(0, 8)}...`)
         await prisma.deviceToken
           .delete({ where: { id: device.id } })
-          .catch(() => {}) // Ignore errors when cleaning up
+          .catch(() => {})
       }
 
       return success

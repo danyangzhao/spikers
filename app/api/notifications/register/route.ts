@@ -6,9 +6,8 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { token, platform } = body
+    const { token, platform, playerId, groupId } = body
 
-    // Make sure we got a token
     if (!token || typeof token !== 'string') {
       return NextResponse.json(
         { error: 'Device token is required' },
@@ -16,18 +15,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Save the token to the database
-    // "upsert" means: update if it already exists, create if it doesn't
-    // This prevents duplicate tokens if the app registers multiple times
     const deviceToken = await prisma.deviceToken.upsert({
       where: { token },
       update: {
         platform: platform || 'ios',
+        playerId: playerId || null,
+        groupId: groupId || null,
         updatedAt: new Date(),
       },
       create: {
         token,
         platform: platform || 'ios',
+        playerId: playerId || null,
+        groupId: groupId || null,
       },
     })
 
