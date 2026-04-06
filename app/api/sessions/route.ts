@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendPushToAllDevices } from '@/lib/apns'
+import { sendPushToGroup } from '@/lib/apns'
 import { getGroupId } from '@/lib/group'
 
 // GET /api/sessions - List all sessions
@@ -73,7 +73,8 @@ export async function POST(request: NextRequest) {
     })
     const locationStr = location ? ` at ${location}` : ''
 
-    sendPushToAllDevices(
+    sendPushToGroup(
+      groupId,
       'New Session! 🏐',
       `A session has been scheduled for ${dateStr}${locationStr}. RSVP now!`,
       { sessionId: session.id }

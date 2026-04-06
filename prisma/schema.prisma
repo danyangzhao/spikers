@@ -11,11 +11,13 @@ datasource db {
 }
 
 model Group {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  players   Player[]
-  sessions  Session[]
+  id           String         @id @default(cuid())
+  name         String         @unique
+  createdAt    DateTime       @default(now())
+  players      Player[]
+  sessions     Session[]
+  messages     GroupMessage[]
+  deviceTokens DeviceToken[]
 }
 
 model Player {
@@ -39,6 +41,8 @@ model Player {
   videoAnnotations VideoAnnotation[]
   tournamentTeamsA TournamentTeam[]  @relation("TournamentTeamPlayerA")
   tournamentTeamsB TournamentTeam[]  @relation("TournamentTeamPlayerB")
+  deviceTokens     DeviceToken[]
+  groupMessages    GroupMessage[]
 
   @@index([groupId])
 }
@@ -279,10 +283,35 @@ model PlayerBadge {
 
 model DeviceToken {
   id        String   @id @default(cuid())
-  token     String   @unique  // The APNs device token (hex string)
-  platform  String   @default("ios") // "ios" for now, could add "android" later
+  token     String   @unique
+  platform  String   @default("ios")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  playerId String?
+  player   Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([playerId])
+  @@index([groupId])
+}
+
+model GroupMessage {
+  id         String    @id @default(cuid())
+  title      String
+  body       String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  pushSentAt DateTime?
+
+  groupId  String
+  group    Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  authorId String
+  author   Player  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
 }
 
 // ============================================

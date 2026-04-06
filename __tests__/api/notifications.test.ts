@@ -19,9 +19,9 @@ jest.mock('@/lib/prisma', () => ({
   },
 }))
 
-// Mock the APNs module so tests don't try to actually send notifications
 jest.mock('@/lib/apns', () => ({
   sendPushToAllDevices: jest.fn().mockResolvedValue(0),
+  sendPushToGroup: jest.fn().mockResolvedValue(0),
 }))
 
 import { POST as registerPOST } from '../../app/api/notifications/register/route'
@@ -64,16 +64,19 @@ describe('POST /api/notifications/register', () => {
     expect(data.status).toBe('registered')
     expect(data.id).toBe('token-id-123')
 
-    // Verify prisma.upsert was called with the right arguments
     expect(mockUpsert).toHaveBeenCalledWith({
       where: { token: 'abcdef1234567890' },
       update: {
         platform: 'ios',
+        playerId: null,
+        groupId: null,
         updatedAt: expect.any(Date),
       },
       create: {
         token: 'abcdef1234567890',
         platform: 'ios',
+        playerId: null,
+        groupId: null,
       },
     })
   })
@@ -114,6 +117,32 @@ describe('POST /api/notifications/register', () => {
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ platform: 'ios' }),
+      })
+    )
+  })
+
+  it('stores groupId when provided', async () => {
+    const fakeToken = {
+      id: 'token-id-789',
+      token: 'abcdef1234567890',
+      platform: 'ios',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    mockUpsert.mockResolvedValue(fakeToken)
+
+    const request = createRequest({
+      token: 'abcdef1234567890',
+      groupId: 'group-123',
+    })
+
+    const response = await registerPOST(request)
+    expect(response.status).toBe(200)
+
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ groupId: 'group-123' }),
+        update: expect.objectContaining({ groupId: 'group-123' }),
       })
     )
   })
