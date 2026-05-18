@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getGroupId } from '@/lib/group'
 import { listSeasons, startNewSeason } from '@/lib/seasons'
 
+function mapSeasonStartError(error: unknown): { status: number; message: string } {
+  const detail = error instanceof Error ? error.message : 'Unknown error'
+  const lowered = detail.toLowerCase()
+
+  if (detail === 'A future season is already announced for this group') {
+    return { status: 409, message: detail }
+  }
+  if (
+    lowered.includes('column') && lowered.includes('scheduledstartat') ||
+    lowered.includes('unknown argument `scheduledstartat`')
+  ) {
+    return {
+      status: 500,
+      message: 'Scheduled seasons are not available on the server yet. Please deploy the latest backend migrations.',
+    }
+  }
+
+  return { status: 500, message: 'Failed to start season' }
+}
+
 // GET /api/seasons - List seasons in the current group
 export async function GET(request: NextRequest) {
   try {
@@ -59,9 +79,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(newSeason, { status: 201 })
   } catch (error) {
     console.error('Error starting new season:', error)
+    const mapped = mapSeasonStartError(error)
     return NextResponse.json(
-      { error: 'Failed to start season', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: mapped.message, details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: mapped.status }
     )
   }
 }
