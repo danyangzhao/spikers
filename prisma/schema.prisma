@@ -79,6 +79,7 @@ model Season {
   startedAt DateTime @default(now())
   scheduledStartAt DateTime?
   announcedAt DateTime?
+  carryOverPlayerIds String[] @default([])
   endedAt   DateTime?
   isActive  Boolean  @default(true)
 

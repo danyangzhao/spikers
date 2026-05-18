@@ -107,6 +107,7 @@ export async function startNewSeason(input: StartNewSeasonInput) {
           startedAt: scheduledStartAt,
           scheduledStartAt,
           announcedAt: new Date(),
+          carryOverPlayerIds: dedupedCarryOverIds,
           endedAt: null,
         },
       })
@@ -130,6 +131,7 @@ export async function startNewSeason(input: StartNewSeasonInput) {
         isActive: true,
         scheduledStartAt: null,
         announcedAt: null,
+        carryOverPlayerIds: dedupedCarryOverIds,
       },
     })
 
@@ -174,6 +176,7 @@ async function activateDueScheduledSeason(groupId: string, txClient?: TxClient) 
   if (!dueSeason) return null
 
   const activateInTransaction = async (tx: TxClient) => {
+    const carryOverPlayerIds = dueSeason.carryOverPlayerIds ?? []
     const activeSeason = await tx.season.findFirst({
       where: { groupId, isActive: true },
       orderBy: { number: 'desc' },
@@ -190,12 +193,40 @@ async function activateDueScheduledSeason(groupId: string, txClient?: TxClient) 
       })
     }
 
-    return tx.season.update({
+    const activatedSeason = await tx.season.update({
       where: { id: dueSeason.id },
       data: {
         isActive: true,
       },
     })
+
+    if (carryOverPlayerIds.length > 0) {
+      await tx.player.updateMany({
+        where: {
+          groupId,
+          id: { in: carryOverPlayerIds },
+        },
+        data: {
+          rating: BASE_ELO,
+          isActive: true,
+        },
+      })
+
+      await tx.player.updateMany({
+        where: {
+          groupId,
+          id: { notIn: carryOverPlayerIds },
+          createdAt: {
+            lt: dueSeason.announcedAt ?? dueSeason.scheduledStartAt ?? now,
+          },
+        },
+        data: {
+          isActive: false,
+        },
+      })
+    }
+
+    return activatedSeason
   }
 
   if (txClient) {
@@ -329,7 +360,7 @@ function updateStanding(
 
 export async function getSeasonById(groupId: string, seasonId: string) {
   await activateDueScheduledSeason(groupId)
-  return prisma.season.findFirst({
+  const season = await prisma.season.findFirst({
     where: {
       id: seasonId,
       groupId,
@@ -375,5 +406,88 @@ export async function getSeasonById(groupId: string, seasonId: string) {
       },
     },
   })
+
+  if (!season || !season.isActive) {
+    return season
+  }
+
+  const gamesCount = await prisma.game.count({
+    where: {
+      session: {
+        seasonId: season.id,
+        groupId,
+      },
+    },
+  })
+
+  if (gamesCount === 0) {
+    return {
+      ...season,
+      standings: [],
+    }
+  }
+
+  const [players, games] = await Promise.all([
+    prisma.player.findMany({
+      where: { groupId },
+      select: {
+        id: true,
+        name: true,
+        emoji: true,
+        rating: true,
+      },
+    }),
+    prisma.game.findMany({
+      where: {
+        session: {
+          seasonId: season.id,
+          groupId,
+        },
+      },
+      include: {
+        teamAPlayers: {
+          select: { id: true },
+        },
+        teamBPlayers: {
+          select: { id: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ])
+
+  const playerById = new Map(players.map((player) => [player.id, player]))
+  const liveStandings = buildSeasonStandings(players, games).map((standing, index) => {
+    const player = playerById.get(standing.playerId)
+    return {
+      id: `live-${season.id}-${standing.playerId}`,
+      seasonId: season.id,
+      playerId: standing.playerId,
+      finalRating: standing.finalRating,
+      gamesPlayed: standing.gamesPlayed,
+      wins: standing.wins,
+      losses: standing.losses,
+      pointsFor: standing.pointsFor,
+      pointsAgainst: standing.pointsAgainst,
+      longestWinStreak: standing.longestWinStreak,
+      rank: index + 1,
+      player: player
+        ? {
+            id: player.id,
+            name: player.name,
+            emoji: player.emoji,
+          }
+        : {
+            id: standing.playerId,
+            name: 'Unknown',
+            emoji: '❓',
+          },
+    }
+  })
+
+  return {
+    ...season,
+    standings: liveStandings,
+  }
 }
 

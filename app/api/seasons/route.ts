@@ -69,6 +69,13 @@ export async function POST(request: NextRequest) {
       scheduledStartAt = parsed
     }
 
+    console.info('[seasons.POST]', {
+      hasFutureSchedule: Boolean(scheduledStartAt && scheduledStartAt.getTime() > Date.now()),
+      scheduledStartAtIso: scheduledStartAt?.toISOString() ?? null,
+      now: new Date().toISOString(),
+      groupId,
+    })
+
     const newSeason = await startNewSeason({
       groupId,
       name,

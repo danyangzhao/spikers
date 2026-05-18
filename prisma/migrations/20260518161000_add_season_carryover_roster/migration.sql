@@ -1,0 +1,2 @@
+ALTER TABLE "Season"
+ADD COLUMN "carryOverPlayerIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
