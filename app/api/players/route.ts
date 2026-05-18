@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getGroupId } from '@/lib/group'
+import { getActiveSeason } from '@/lib/seasons'
 
 // GET /api/players - List all players
 export async function GET(request: NextRequest) {
@@ -10,6 +11,35 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const activeOnly = searchParams.get('activeOnly') !== 'false'
+    const seasonId = searchParams.get('seasonId')
+
+    if (seasonId) {
+      const activeSeason = await getActiveSeason(groupId)
+      if (activeSeason && seasonId !== activeSeason.id) {
+        const standings = await prisma.seasonStanding.findMany({
+          where: {
+            seasonId,
+            season: { groupId },
+          },
+          include: {
+            player: true,
+          },
+          orderBy: { rank: 'asc' },
+        })
+
+        const players = standings.map((standing) => ({
+          id: standing.player.id,
+          name: standing.player.name,
+          emoji: standing.player.emoji,
+          createdAt: standing.player.createdAt,
+          isActive: standing.player.isActive,
+          rating: standing.finalRating,
+          groupId: standing.player.groupId,
+        }))
+
+        return NextResponse.json(players)
+      }
+    }
 
     const players = await prisma.player.findMany({
       where: {

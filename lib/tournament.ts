@@ -572,11 +572,15 @@ export async function recordTournamentGame(input: {
   })
   if (result?.status === 'COMPLETED' && result.winnerTeamId) {
     const winnerTeamId = result.winnerTeamId
-    prisma.tournamentTeam.findUnique({ where: { id: winnerTeamId } }).then((winnerTeam) => {
-      if (!winnerTeam) return
-      const promises = [awardNewBadges(winnerTeam.playerAId)]
+    const sessionId = result.sessionId
+    Promise.all([
+      prisma.tournamentTeam.findUnique({ where: { id: winnerTeamId } }),
+      prisma.session.findUnique({ where: { id: sessionId }, select: { seasonId: true } }),
+    ]).then(([winnerTeam, session]) => {
+      if (!winnerTeam || !session) return
+      const promises = [awardNewBadges(winnerTeam.playerAId, session.seasonId)]
       if (winnerTeam.playerBId) {
-        promises.push(awardNewBadges(winnerTeam.playerBId))
+        promises.push(awardNewBadges(winnerTeam.playerBId, session.seasonId))
       }
       return Promise.all(promises)
     }).catch((err) => {

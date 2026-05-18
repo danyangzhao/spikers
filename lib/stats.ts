@@ -45,11 +45,13 @@ const MIN_GAMES_THRESHOLD = 3
  */
 export async function getPartnerChemistry(
   playerId: string,
-  limit: number = 3
+  limit: number = 3,
+  seasonId?: string
 ): Promise<PartnerStat[]> {
   // Get all games where this player participated
   const games = await prisma.game.findMany({
     where: {
+      ...(seasonId ? { session: { seasonId } } : {}),
       OR: [
         { teamAPlayers: { some: { id: playerId } } },
         { teamBPlayers: { some: { id: playerId } } },
@@ -111,11 +113,13 @@ export async function getPartnerChemistry(
  */
 export async function getNemesisOpponents(
   playerId: string,
-  limit: number = 3
+  limit: number = 3,
+  seasonId?: string
 ): Promise<NemesisStat[]> {
   // Get all games where this player participated
   const games = await prisma.game.findMany({
     where: {
+      ...(seasonId ? { session: { seasonId } } : {}),
       OR: [
         { teamAPlayers: { some: { id: playerId } } },
         { teamBPlayers: { some: { id: playerId } } },
@@ -175,10 +179,11 @@ export async function getNemesisOpponents(
 /**
  * Get lifetime stats for a player
  */
-export async function getPlayerLifetimeStats(playerId: string) {
+export async function getPlayerLifetimeStats(playerId: string, seasonId?: string) {
   // Get all games ordered by creation time for streak tracking
   const games = await prisma.game.findMany({
     where: {
+      ...(seasonId ? { session: { seasonId } } : {}),
       OR: [
         { teamAPlayers: { some: { id: playerId } } },
         { teamBPlayers: { some: { id: playerId } } },
@@ -193,7 +198,11 @@ export async function getPlayerLifetimeStats(playerId: string) {
 
   // Get attendance
   const attendances = await prisma.attendance.findMany({
-    where: { playerId, present: true },
+    where: {
+      playerId,
+      present: true,
+      ...(seasonId ? { session: { seasonId } } : {}),
+    },
   })
 
   let wins = 0
@@ -475,9 +484,12 @@ export async function getSessionAwards(sessionId: string) {
 /**
  * Get attendance streak for a player
  */
-export async function getAttendanceStreak(playerId: string): Promise<number> {
+export async function getAttendanceStreak(playerId: string, seasonId?: string): Promise<number> {
   const sessions = await prisma.session.findMany({
-    where: { status: 'COMPLETED' },
+    where: {
+      status: 'COMPLETED',
+      ...(seasonId ? { seasonId } : {}),
+    },
     orderBy: { date: 'desc' },
     include: {
       attendances: {
@@ -503,11 +515,11 @@ export async function getAttendanceStreak(playerId: string): Promise<number> {
  * Check badge eligibility for a player
  * Returns an array of badge codes they qualify for
  */
-export async function checkBadgeEligibility(playerId: string): Promise<string[]> {
+export async function checkBadgeEligibility(playerId: string, seasonId?: string): Promise<string[]> {
   const eligibleBadges: string[] = []
 
   // Get player stats
-  const stats = await getPlayerLifetimeStats(playerId)
+  const stats = await getPlayerLifetimeStats(playerId, seasonId)
 
   // FIRST_WIN: Won at least one game
   if (stats.wins >= 1) {
@@ -518,6 +530,7 @@ export async function checkBadgeEligibility(playerId: string): Promise<string[]>
   const tournamentWins = await prisma.tournament.count({
     where: {
       status: 'COMPLETED',
+      ...(seasonId ? { session: { seasonId } } : {}),
       winnerTeam: {
         OR: [
           { playerAId: playerId },
@@ -556,7 +569,7 @@ export async function checkBadgeEligibility(playerId: string): Promise<string[]>
   }
 
   // STREAK_BEAST: 5+ session attendance streak
-  const streak = await getAttendanceStreak(playerId)
+  const streak = await getAttendanceStreak(playerId, seasonId)
   if (streak >= 5) {
     eligibleBadges.push('STREAK_BEAST')
   }
@@ -574,6 +587,7 @@ export async function checkBadgeEligibility(playerId: string): Promise<string[]>
   // Get all games for per-game badges (SHUTOUT, NAIL_BITER, DOMINANT)
   const allGames = await prisma.game.findMany({
     where: {
+      ...(seasonId ? { session: { seasonId } } : {}),
       OR: [
         { teamAPlayers: { some: { id: playerId } } },
         { teamBPlayers: { some: { id: playerId } } },
@@ -657,6 +671,7 @@ export async function checkBadgeEligibility(playerId: string): Promise<string[]>
   const sessions = await prisma.session.findMany({
     where: {
       status: 'COMPLETED',
+      ...(seasonId ? { seasonId } : {}),
       attendances: { some: { playerId, present: true } },
     },
     include: {
@@ -726,13 +741,14 @@ export async function checkBadgeEligibility(playerId: string): Promise<string[]>
  * Get badge progress for a player
  * Returns progress toward each unearned badge
  */
-export async function getBadgeProgress(playerId: string): Promise<{ code: string; current: number; target: number }[]> {
-  const stats = await getPlayerLifetimeStats(playerId)
-  const streak = await getAttendanceStreak(playerId)
+export async function getBadgeProgress(playerId: string, seasonId?: string): Promise<{ code: string; current: number; target: number }[]> {
+  const stats = await getPlayerLifetimeStats(playerId, seasonId)
+  const streak = await getAttendanceStreak(playerId, seasonId)
 
   // Get all games for social badge progress
   const allGames = await prisma.game.findMany({
     where: {
+      ...(seasonId ? { session: { seasonId } } : {}),
       OR: [
         { teamAPlayers: { some: { id: playerId } } },
         { teamBPlayers: { some: { id: playerId } } },
@@ -807,12 +823,12 @@ export async function getBadgeProgress(playerId: string): Promise<{ code: string
  * Award new badges to a player
  * Checks eligibility and awards any badges they don't already have
  */
-export async function awardNewBadges(playerId: string): Promise<string[]> {
-  const eligibleBadges = await checkBadgeEligibility(playerId)
+export async function awardNewBadges(playerId: string, seasonId: string): Promise<string[]> {
+  const eligibleBadges = await checkBadgeEligibility(playerId, seasonId)
   
   // Get already earned badges
   const existingBadges = await prisma.playerBadge.findMany({
-    where: { playerId },
+    where: { playerId, seasonId },
     include: { badge: true },
   })
   const existingCodes = new Set(existingBadges.map((pb) => pb.badge.code))
@@ -828,6 +844,7 @@ export async function awardNewBadges(playerId: string): Promise<string[]> {
         data: {
           playerId,
           badgeId: badge.id,
+          seasonId,
         },
       })
     }

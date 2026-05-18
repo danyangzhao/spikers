@@ -16,6 +16,7 @@ model Group {
   createdAt    DateTime       @default(now())
   players      Player[]
   sessions     Session[]
+  seasons      Season[]
   messages     GroupMessage[]
   deviceTokens DeviceToken[]
 }
@@ -37,6 +38,7 @@ model Player {
   teamBGames       Game[]            @relation("TeamBPlayers")
   ratingHistory    RatingHistory[]
   playerBadges     PlayerBadge[]
+  seasonStandings  SeasonStanding[]
   videoTags        VideoPlayerTag[]
   videoAnnotations VideoAnnotation[]
   tournamentTeamsA TournamentTeam[]  @relation("TournamentTeamPlayerA")
@@ -56,6 +58,8 @@ model Session {
 
   groupId String
   group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  seasonId String
+  season   Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   attendances   Attendance[]
   rsvps         RSVP[]
@@ -64,6 +68,45 @@ model Session {
   tournament    Tournament?
 
   @@index([groupId])
+  @@index([seasonId])
+}
+
+model Season {
+  id        String   @id @default(cuid())
+  groupId   String
+  name      String
+  number    Int
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  isActive  Boolean  @default(true)
+
+  group     Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessions  Session[]
+  standings SeasonStanding[]
+  badges    PlayerBadge[]
+
+  @@unique([groupId, number])
+  @@index([groupId, isActive])
+}
+
+model SeasonStanding {
+  id               String @id @default(cuid())
+  seasonId         String
+  playerId         String
+  finalRating      Int
+  gamesPlayed      Int
+  wins             Int
+  losses           Int
+  pointsFor        Int
+  pointsAgainst    Int
+  longestWinStreak Int
+  rank             Int
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, playerId])
+  @@index([seasonId])
 }
 
 enum SessionStatus {
@@ -269,12 +312,15 @@ model PlayerBadge {
   id        String   @id @default(cuid())
   playerId  String
   badgeId   String
+  seasonId  String
   earnedAt  DateTime @default(now())
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   badge  Badge  @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
-  @@unique([playerId, badgeId])
+  @@unique([playerId, badgeId, seasonId])
+  @@index([seasonId])
 }
 
 // ============================================

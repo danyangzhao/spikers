@@ -136,7 +136,7 @@ export async function PATCH(
 
     if (status === 'COMPLETED' && currentSession.status !== 'COMPLETED') {
       const attendeeIds = currentSession.attendances.map((a) => a.playerId)
-      Promise.all(attendeeIds.map((playerId) => awardNewBadges(playerId))).catch((err) => {
+      Promise.all(attendeeIds.map((playerId) => awardNewBadges(playerId, currentSession.seasonId))).catch((err) => {
         console.error('Background badge award failed:', err)
       })
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPushToGroup } from '@/lib/apns'
 import { getGroupId } from '@/lib/group'
+import { getActiveSeason } from '@/lib/seasons'
 
 // GET /api/sessions - List all sessions
 export async function GET(request: NextRequest) {
@@ -12,10 +13,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const limit = searchParams.get('limit')
+    const seasonId = searchParams.get('seasonId')
 
     const sessions = await prisma.session.findMany({
       where: {
         groupId,
+        ...(seasonId ? { seasonId } : {}),
         ...(status ? { status: status as 'UPCOMING' | 'IN_PROGRESS' | 'COMPLETED' } : {}),
       },
       orderBy: { date: 'desc' },
@@ -56,12 +59,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let activeSeason = await getActiveSeason(groupId)
+    if (!activeSeason) {
+      activeSeason = await prisma.season.create({
+        data: {
+          groupId,
+          number: 1,
+          name: 'Season 1',
+          isActive: true,
+        },
+      })
+    }
+
     const session = await prisma.session.create({
       data: {
         date: new Date(date),
         location: location || null,
         status: 'UPCOMING',
         groupId,
+        seasonId: activeSeason.id,
       },
     })
 
