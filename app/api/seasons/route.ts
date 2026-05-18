@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const name = typeof body.name === 'string' ? body.name : undefined
     const carryOverPlayerIds = Array.isArray(body.carryOverPlayerIds) ? body.carryOverPlayerIds : []
+    const scheduledStartAtRaw = typeof body.scheduledStartAt === 'string' ? body.scheduledStartAt : undefined
 
     if (!carryOverPlayerIds.length) {
       return NextResponse.json(
@@ -36,10 +37,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let scheduledStartAt: Date | undefined
+    if (scheduledStartAtRaw) {
+      const parsed = new Date(scheduledStartAtRaw)
+      if (Number.isNaN(parsed.getTime())) {
+        return NextResponse.json(
+          { error: 'scheduledStartAt must be a valid ISO date string' },
+          { status: 400 }
+        )
+      }
+      scheduledStartAt = parsed
+    }
+
     const newSeason = await startNewSeason({
       groupId,
       name,
       carryOverPlayerIds,
+      scheduledStartAt,
     })
 
     return NextResponse.json(newSeason, { status: 201 })

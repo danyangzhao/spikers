@@ -9,6 +9,7 @@ interface StartNewSeasonInput {
   groupId: string
   name?: string
   carryOverPlayerIds: string[]
+  scheduledStartAt?: Date
 }
 
 interface ComputedStanding {
@@ -23,6 +24,7 @@ interface ComputedStanding {
 }
 
 export async function getActiveSeason(groupId: string) {
+  await activateDueScheduledSeason(groupId)
   return prisma.season.findFirst({
     where: { groupId, isActive: true },
     orderBy: { number: 'desc' },
@@ -30,6 +32,7 @@ export async function getActiveSeason(groupId: string) {
 }
 
 export async function listSeasons(groupId: string) {
+  await activateDueScheduledSeason(groupId)
   return prisma.season.findMany({
     where: { groupId },
     orderBy: { number: 'desc' },
@@ -37,7 +40,7 @@ export async function listSeasons(groupId: string) {
 }
 
 export async function startNewSeason(input: StartNewSeasonInput) {
-  const { groupId, name, carryOverPlayerIds } = input
+  const { groupId, name, carryOverPlayerIds, scheduledStartAt } = input
 
   if (!carryOverPlayerIds.length) {
     throw new Error('carryOverPlayerIds must include at least one player')
@@ -57,6 +60,8 @@ export async function startNewSeason(input: StartNewSeasonInput) {
   }
 
   return prisma.$transaction(async (tx) => {
+    await activateDueScheduledSeason(groupId, tx)
+
     let activeSeason = await tx.season.findFirst({
       where: { groupId, isActive: true },
       orderBy: { number: 'desc' },
@@ -69,6 +74,40 @@ export async function startNewSeason(input: StartNewSeasonInput) {
           number: 1,
           name: 'Season 1',
           isActive: true,
+          scheduledStartAt: null,
+          announcedAt: null,
+        },
+      })
+    }
+
+    const newSeasonNumber = activeSeason.number + 1
+    const trimmedName = name?.trim()
+    const hasFutureSchedule = Boolean(scheduledStartAt && scheduledStartAt.getTime() > Date.now())
+
+    if (hasFutureSchedule && scheduledStartAt) {
+      const existingAnnouncement = await tx.season.findFirst({
+        where: {
+          groupId,
+          isActive: false,
+          endedAt: null,
+          scheduledStartAt: { gt: new Date() },
+        },
+      })
+
+      if (existingAnnouncement) {
+        throw new Error('A future season is already announced for this group')
+      }
+
+      return tx.season.create({
+        data: {
+          groupId,
+          number: newSeasonNumber,
+          name: trimmedName || `Season ${newSeasonNumber}`,
+          isActive: false,
+          startedAt: scheduledStartAt,
+          scheduledStartAt,
+          announcedAt: new Date(),
+          endedAt: null,
         },
       })
     }
@@ -83,13 +122,14 @@ export async function startNewSeason(input: StartNewSeasonInput) {
       },
     })
 
-    const newSeasonNumber = activeSeason.number + 1
     const newSeason = await tx.season.create({
       data: {
         groupId,
         number: newSeasonNumber,
-        name: name?.trim() || `Season ${newSeasonNumber}`,
+        name: trimmedName || `Season ${newSeasonNumber}`,
         isActive: true,
+        scheduledStartAt: null,
+        announcedAt: null,
       },
     })
 
@@ -116,6 +156,53 @@ export async function startNewSeason(input: StartNewSeasonInput) {
 
     return newSeason
   })
+}
+
+async function activateDueScheduledSeason(groupId: string, txClient?: TxClient) {
+  const now = new Date()
+  const db = txClient ?? prisma
+  const dueSeason = await db.season.findFirst({
+    where: {
+      groupId,
+      isActive: false,
+      endedAt: null,
+      scheduledStartAt: { lte: now },
+    },
+    orderBy: { scheduledStartAt: 'asc' },
+  })
+
+  if (!dueSeason) return null
+
+  const activateInTransaction = async (tx: TxClient) => {
+    const activeSeason = await tx.season.findFirst({
+      where: { groupId, isActive: true },
+      orderBy: { number: 'desc' },
+    })
+
+    if (activeSeason && activeSeason.id !== dueSeason.id) {
+      await snapshotSeasonStandings(tx, groupId, activeSeason.id)
+      await tx.season.update({
+        where: { id: activeSeason.id },
+        data: {
+          isActive: false,
+          endedAt: dueSeason.scheduledStartAt ?? now,
+        },
+      })
+    }
+
+    return tx.season.update({
+      where: { id: dueSeason.id },
+      data: {
+        isActive: true,
+      },
+    })
+  }
+
+  if (txClient) {
+    return activateInTransaction(txClient)
+  }
+
+  return prisma.$transaction(async (tx) => activateInTransaction(tx))
 }
 
 async function snapshotSeasonStandings(tx: TxClient, groupId: string, seasonId: string) {
@@ -241,6 +328,7 @@ function updateStanding(
 }
 
 export async function getSeasonById(groupId: string, seasonId: string) {
+  await activateDueScheduledSeason(groupId)
   return prisma.season.findFirst({
     where: {
       id: seasonId,

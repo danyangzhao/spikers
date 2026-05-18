@@ -77,6 +77,8 @@ model Season {
   name      String
   number    Int
   startedAt DateTime @default(now())
+  scheduledStartAt DateTime?
+  announcedAt DateTime?
   endedAt   DateTime?
   isActive  Boolean  @default(true)
 
