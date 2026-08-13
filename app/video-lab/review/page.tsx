@@ -97,6 +97,10 @@ export default function VideoLabReviewPage() {
     return detectJumpWarnings(result, corrections, 6).slice(0, 100)
   }, [result, corrections])
 
+  const innerTrackerUniqueCount = result?.diagnostics.innerTrackerUniqueIdCount ?? null
+  const slotCount = result?.diagnostics.slotCount ?? result?.players.length ?? 4
+  const slotSwitchEvents = result?.diagnostics.slotTrackSwitchEvents ?? []
+
   const currentStatusByPlayer = useMemo(() => {
     if (!result || currentFrame < 0 || currentFrame >= result.frames.length) {
       return {}
@@ -524,15 +528,63 @@ export default function VideoLabReviewPage() {
             <div className="rounded-lg border border-gray-200 bg-white p-4">
               <h2 className="font-semibold mb-2">Diagnostics</h2>
               <p className="text-sm">
+                Inner tracker unique IDs:{' '}
+                <strong
+                  className={
+                    innerTrackerUniqueCount !== null && innerTrackerUniqueCount > slotCount
+                      ? 'text-red-700'
+                      : ''
+                  }
+                >
+                  {innerTrackerUniqueCount ?? 'N/A'}
+                </strong>{' '}
+                vs fixed slots <strong>{slotCount}</strong>
+              </p>
+              {innerTrackerUniqueCount !== null && innerTrackerUniqueCount > slotCount && (
+                <p className="mt-1 text-xs text-red-700">
+                  Raw tracker ID churn detected. This is exactly why slot persistence must not rely on raw
+                  tracker IDs.
+                </p>
+              )}
+              {result.diagnostics.slotTrackSwitchCountByPlayer && (
+                <div className="mt-2 text-xs text-gray-700 space-y-1">
+                  {result.players.map((player) => (
+                    <p key={`switch-count-${player.id}`}>
+                      {player.id} source-track switches:{' '}
+                      {result.diagnostics.slotTrackSwitchCountByPlayer?.[player.id] ?? 0}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {result.diagnostics.rawPersonDetectionsPerFrameHistogram && (
+                <p className="mt-2 text-xs text-gray-700">
+                  Raw person detections/frame:{' '}
+                  {Object.entries(result.diagnostics.rawPersonDetectionsPerFrameHistogram)
+                    .map(([count, frames]) => `${count}:${frames}`)
+                    .join('  ')}
+                </p>
+              )}
+              <p className="text-sm">
                 Jump warnings (large short-gap teleports): <strong>{jumpWarnings.length}</strong>
               </p>
-              <div className="mt-2 max-h-36 overflow-auto text-xs text-gray-700 space-y-1">
+              <div className="mt-2 max-h-32 overflow-auto text-xs text-gray-700 space-y-1">
                 {jumpWarnings.length === 0 && <p>No obvious ID jump warnings.</p>}
                 {jumpWarnings.map((warning, index) => (
                   <p key={`${warning.playerId}-${warning.frame}-${index}`}>
                     frame {warning.frame}: {warning.playerId} jumped {warning.jumpFeet.toFixed(2)} ft
                   </p>
                 ))}
+              </div>
+              <div className="mt-3 max-h-28 overflow-auto text-xs text-gray-700 space-y-1">
+                {slotSwitchEvents.length === 0 ? (
+                  <p>No slot source-track switches recorded.</p>
+                ) : (
+                  slotSwitchEvents.slice(0, 80).map((event, index) => (
+                    <p key={`${event.playerId}-${event.frame}-${index}`}>
+                      frame {event.frame}: {event.playerId} track {event.fromTrackId} → {event.toTrackId}
+                    </p>
+                  ))
+                )}
               </div>
             </div>
 

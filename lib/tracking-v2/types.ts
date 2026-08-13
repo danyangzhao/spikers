@@ -38,6 +38,18 @@ export interface TrackingCalibration {
 export interface TrackingDiagnostics {
   slotSeedFrame?: number | null
   slotCount?: number
+  slotSeedsRequired?: boolean
+  innerTrackerUniqueIdCount?: number
+  innerTrackerUniqueIds?: number[]
+  rawPersonDetectionsPerFrameHistogram?: Record<string, number>
+  slotTrackIdsByPlayer?: Record<string, number[]>
+  slotTrackSwitchCountByPlayer?: Record<string, number>
+  slotTrackSwitchEvents?: Array<{
+    playerId: string
+    frame: number
+    fromTrackId: number
+    toTrackId: number
+  }>
   missingFramesByPlayer: Record<string, number>
   occludedFramesByPlayer?: Record<string, number>
   jumpWarnings: Array<{

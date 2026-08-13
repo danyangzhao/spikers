@@ -131,6 +131,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--allow-auto-init",
+        action="store_true",
+        help=(
+            "Debug-only escape hatch: allow non-seeded left-to-right initialization. "
+            "Milestone workflow should keep this disabled and use --slot-seeds-file."
+        ),
+    )
+    parser.add_argument(
         "--net-points",
         default="",
         help="Optional 4 image points: 'x1,y1;x2,y2;x3,y3;x4,y4' clockwise on the rim.",
@@ -483,6 +491,40 @@ def collect_detections(
 
     output.sort(key=lambda det: det.area, reverse=True)
     return output[:10]
+
+
+def collect_raw_tracker_stats(
+    result,
+    frame_area: float,
+    min_box_area_ratio: float,
+    min_confidence: float,
+) -> Tuple[int, List[int]]:
+    boxes = result.boxes
+    if boxes is None or len(boxes) == 0:
+        return 0, []
+
+    xyxy = boxes.xyxy.cpu().numpy()
+    confs = boxes.conf.cpu().numpy()
+    classes = boxes.cls.cpu().numpy()
+    track_ids = boxes.id.cpu().numpy().astype(np.int64) if boxes.id is not None else None
+
+    person_count = 0
+    tracker_ids: List[int] = []
+    for i in range(len(xyxy)):
+        if int(classes[i]) != 0:
+            continue
+        confidence = float(confs[i])
+        if confidence < min_confidence:
+            continue
+        bbox = tuple(float(value) for value in xyxy[i])
+        area = max(0.0, bbox[2] - bbox[0]) * max(0.0, bbox[3] - bbox[1])
+        if area < frame_area * min_box_area_ratio:
+            continue
+        person_count += 1
+        if track_ids is not None:
+            tracker_ids.append(int(track_ids[i]))
+
+    return person_count, sorted(set(tracker_ids))
 
 
 def refine_detections_for_merged_people(
@@ -986,11 +1028,60 @@ def compute_player_distance_feet(
     return float(distance), jump_warnings
 
 
+def collect_slot_track_id_diagnostics(frames: List[dict], players: List[PlayerState]) -> Tuple[Dict[str, List[int]], Dict[str, int], List[dict]]:
+    ids_by_player: Dict[str, set[int]] = {player.player_id: set() for player in players}
+    switch_count_by_player: Dict[str, int] = {player.player_id: 0 for player in players}
+    switch_events: List[dict] = []
+    previous_track_id: Dict[str, Optional[int]] = {player.player_id: None for player in players}
+
+    for frame in frames:
+        frame_index = int(frame["frame"])
+        for player in players:
+            observation = frame["players"].get(player.player_id)
+            current_track_id = None
+            if observation and observation.get("visible"):
+                current_track_id = observation.get("sourceTrackId")
+                if current_track_id is not None:
+                    current_track_id = int(current_track_id)
+                    ids_by_player[player.player_id].add(current_track_id)
+
+            previous = previous_track_id[player.player_id]
+            if (
+                previous is not None
+                and current_track_id is not None
+                and current_track_id != previous
+            ):
+                switch_count_by_player[player.player_id] += 1
+                switch_events.append(
+                    {
+                        "playerId": player.player_id,
+                        "frame": frame_index,
+                        "fromTrackId": previous,
+                        "toTrackId": current_track_id,
+                    }
+                )
+            if current_track_id is not None:
+                previous_track_id[player.player_id] = current_track_id
+
+    output_ids_by_player = {
+        player_id: sorted(list(track_ids))
+        for player_id, track_ids in ids_by_player.items()
+    }
+    return output_ids_by_player, switch_count_by_player, switch_events
+
+
 def main() -> None:
     args = parse_args()
     video_path = str(Path(args.video).expanduser())
     output_path = Path(args.output).expanduser()
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not args.slot_seeds_file and not args.allow_auto_init:
+        raise RuntimeError(
+            "Slot seeds are required for milestone tracking persistence. "
+            "Create them in /video-lab/setup and pass --slot-seeds-file. "
+            "Use --allow-auto-init only for debugging."
+        )
 
     player_names = parse_player_names(args.player_names)
     slot_seed_frame: Optional[int] = None
@@ -1038,6 +1129,8 @@ def main() -> None:
     bootstrap_frame = -1
     max_frames = int(args.max_frames)
     players_by_id = {player.player_id: player for player in players}
+    inner_tracker_unique_ids: set[int] = set()
+    raw_detection_histogram: Dict[int, int] = {}
 
     for frame_index, result in enumerate(stream):
         if max_frames > 0 and frame_index >= max_frames:
@@ -1046,6 +1139,16 @@ def main() -> None:
         frame_bgr = result.orig_img
         if frame_bgr is None:
             continue
+
+        raw_person_count, raw_tracker_ids = collect_raw_tracker_stats(
+            result=result,
+            frame_area=frame_area,
+            min_box_area_ratio=float(args.min_box_area_ratio),
+            min_confidence=float(args.conf),
+        )
+        raw_detection_histogram[raw_person_count] = raw_detection_histogram.get(raw_person_count, 0) + 1
+        for tracker_id in raw_tracker_ids:
+            inner_tracker_unique_ids.add(int(tracker_id))
 
         detections = collect_detections(
             result=result,
@@ -1079,7 +1182,7 @@ def main() -> None:
                             "Seed frame passed without successful initialization. "
                             "Re-export slot seeds on a clearer frame."
                         )
-            elif len(detections) >= 4:
+            elif args.allow_auto_init and len(detections) >= 4:
                 assignments = initialize_players_by_left_to_right(players, detections, frame_index)
                 initialized = True
                 bootstrap_frame = frame_index
@@ -1200,6 +1303,12 @@ def main() -> None:
         distances[player.player_id] = round(distance_feet, 3) if distance_feet is not None else None
         jump_warnings.extend(warnings)
 
+    (
+        slot_track_ids_by_player,
+        slot_track_switch_count_by_player,
+        slot_track_switch_events,
+    ) = collect_slot_track_id_diagnostics(frames=frames, players=players)
+
     processed_frame_count = len(frames)
     duration = processed_frame_count / fps if processed_frame_count > 0 else 0.0
 
@@ -1241,6 +1350,15 @@ def main() -> None:
             "bootstrapFrame": bootstrap_frame,
             "slotSeedFrame": slot_seed_frame,
             "slotCount": 4,
+            "slotSeedsRequired": not args.allow_auto_init,
+            "innerTrackerUniqueIdCount": len(inner_tracker_unique_ids),
+            "innerTrackerUniqueIds": sorted(list(inner_tracker_unique_ids)),
+            "rawPersonDetectionsPerFrameHistogram": {
+                str(count): raw_detection_histogram[count] for count in sorted(raw_detection_histogram)
+            },
+            "slotTrackIdsByPlayer": slot_track_ids_by_player,
+            "slotTrackSwitchCountByPlayer": slot_track_switch_count_by_player,
+            "slotTrackSwitchEvents": slot_track_switch_events,
             "missingFramesByPlayer": missing_frames,
             "occludedFramesByPlayer": occluded_frames,
             "jumpWarnings": jump_warnings,

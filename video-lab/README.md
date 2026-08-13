@@ -44,6 +44,7 @@ pip install -r video-lab/requirements.txt
 4. Export `roundnet-slot-seeds.json` (contains `seedFrame` + 4 slots).
 
 This seed file is required for stable identity persistence in milestone 1.
+The tracker now fails fast if `--slot-seeds-file` is missing (unless debug flag `--allow-auto-init` is used).
 
 ## Step 2: mark net points once (clockwise on rim)
 
@@ -74,6 +75,11 @@ python video-lab/track_roundnet_session.py \
 - If no net points are supplied, tracking still works but `distanceFeetByPlayer` is `null`.
 - Do not commit large videos; only commit scripts/docs/small JSON fixtures when needed.
 - Two-people-in-one-box guard: implausibly wide detections are split via a secondary detector or rejected.
+- Output diagnostics include:
+  - inner tracker unique ID count/list
+  - per-slot source-track ID switches
+  - raw person detections-per-frame histogram
+  so ID churn vs fixed 4 slots is explicit in review.
 
 ## Step 4: review in web UI
 
