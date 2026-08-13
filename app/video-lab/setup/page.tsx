@@ -23,6 +23,7 @@ export default function VideoLabSetupPage() {
   const [selectedSlot, setSelectedSlot] = useState<'p1' | 'p2' | 'p3' | 'p4'>('p1')
   const [slots, setSlots] = useState<SlotDraft[]>(DEFAULT_SLOTS)
   const [seedFrame, setSeedFrame] = useState<number>(0)
+  const [currentFrame, setCurrentFrame] = useState<number>(0)
   const [videoMeta, setVideoMeta] = useState<{ width: number; height: number; fps: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
@@ -31,13 +32,6 @@ export default function VideoLabSetupPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const allTagged = useMemo(() => slots.every((slot) => slot.point !== null), [slots])
-
-  const currentFrame = useMemo(() => {
-    if (!videoRef.current || !videoMeta) {
-      return 0
-    }
-    return Math.round(videoRef.current.currentTime * videoMeta.fps)
-  }, [videoMeta, isPlaying])
 
   const drawOverlay = useCallback(() => {
     const video = videoRef.current
@@ -111,12 +105,20 @@ export default function VideoLabSetupPage() {
     }
     const onPause = () => {
       setIsPlaying(false)
+      if (videoMeta) {
+        setCurrentFrame(Math.round(video.currentTime * videoMeta.fps))
+      }
       if (rafId) {
         window.cancelAnimationFrame(rafId)
       }
       drawOverlay()
     }
-    const onTime = () => drawOverlay()
+    const onTime = () => {
+      if (videoMeta) {
+        setCurrentFrame(Math.round(video.currentTime * videoMeta.fps))
+      }
+      drawOverlay()
+    }
     const onLoaded = () => drawOverlay()
 
     video.addEventListener('play', onPlay)
@@ -138,7 +140,7 @@ export default function VideoLabSetupPage() {
       video.removeEventListener('loadedmetadata', onLoaded)
       window.removeEventListener('resize', onLoaded)
     }
-  }, [drawOverlay, videoUrl])
+  }, [drawOverlay, videoMeta, videoUrl])
 
   useEffect(() => {
     return () => {
@@ -175,6 +177,7 @@ export default function VideoLabSetupPage() {
     const height = video.videoHeight
     const fpsGuess = 30
     setVideoMeta({ width, height, fps: fpsGuess })
+    setCurrentFrame(0)
   }, [])
 
   const handleCanvasClick = useCallback(
