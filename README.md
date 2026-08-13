@@ -90,6 +90,8 @@ npm run db:studio   # Open Prisma Studio
 For the from-scratch roundnet tracking milestone (offline processing + review UI), see:
 
 - `video-lab/README.md`
+- setup UI: `/video-lab/setup`
+- review UI: `/video-lab/review`
 
 ## License
 

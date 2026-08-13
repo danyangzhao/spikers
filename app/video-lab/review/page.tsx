@@ -97,6 +97,18 @@ export default function VideoLabReviewPage() {
     return detectJumpWarnings(result, corrections, 6).slice(0, 100)
   }, [result, corrections])
 
+  const currentStatusByPlayer = useMemo(() => {
+    if (!result || currentFrame < 0 || currentFrame >= result.frames.length) {
+      return {}
+    }
+    const status: Record<string, string> = {}
+    for (const player of result.players) {
+      const obs = getObservation(result, mappingByFrame, currentFrame, player.id)
+      status[player.id] = obs?.state ?? (obs?.visible ? 'visible' : 'missing')
+    }
+    return status
+  }, [currentFrame, mappingByFrame, result])
+
   const handleLoadJson = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) {
@@ -209,7 +221,7 @@ export default function VideoLabReviewPage() {
 
       for (let f = Math.max(0, frameIndex - historyFrames); f <= frameIndex; f += 1) {
         const obs = getObservation(result, mappingByFrame, f, player.id)
-        if (!obs?.footImage) {
+        if (!obs?.visible || !obs.footImage) {
           previousVisible = false
           continue
         }
@@ -229,7 +241,7 @@ export default function VideoLabReviewPage() {
 
       // Current point and label.
       const currentObs = getObservation(result, mappingByFrame, frameIndex, player.id)
-      if (currentObs?.footImage) {
+      if (currentObs?.visible && currentObs.footImage) {
         const x = currentObs.footImage[0] * scaleX
         const y = currentObs.footImage[1] * scaleY
         ctx.fillStyle = color
@@ -385,7 +397,7 @@ export default function VideoLabReviewPage() {
         {result && (
           <p className="text-xs text-gray-600">
             Loaded {jsonFilename || 'tracking JSON'} • {result.video.frameCount} frames @{' '}
-            {result.video.fps.toFixed(2)} fps
+            {result.video.fps.toFixed(2)} fps • fixed identity slots: {result.players.length}
           </p>
         )}
       </div>
@@ -440,6 +452,7 @@ export default function VideoLabReviewPage() {
                     <p className="mt-2 text-sm font-medium">
                       {formatFeet(distanceByPlayer[player.id] ?? null)}
                     </p>
+                    <p className="mt-1 text-xs text-gray-600">state: {currentStatusByPlayer[player.id] ?? 'unknown'}</p>
                   </div>
                 ))}
               </div>

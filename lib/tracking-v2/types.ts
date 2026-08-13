@@ -11,12 +11,15 @@ export interface TrackingPlayerDefinition {
 
 export interface TrackingPlayerObservation {
   visible: boolean
+  state?: 'visible' | 'occluded' | 'missing'
   bbox: [number, number, number, number] | null
   footImage: [number, number] | null
+  predictedFootImage?: [number, number] | null
   footWorld: [number, number] | null
   footConfidence: number
   sourceTrackId: number | null
   appearanceScore: number | null
+  occludedBy?: string | null
 }
 
 export interface TrackingFrame {
@@ -33,7 +36,10 @@ export interface TrackingCalibration {
 }
 
 export interface TrackingDiagnostics {
+  slotSeedFrame?: number | null
+  slotCount?: number
   missingFramesByPlayer: Record<string, number>
+  occludedFramesByPlayer?: Record<string, number>
   jumpWarnings: Array<{
     playerId: string
     frame: number
@@ -63,4 +69,21 @@ export interface IdentitySwapCorrection {
   frame: number
   playerA: string
   playerB: string
+}
+
+export interface SlotSeed {
+  slotId: 'p1' | 'p2' | 'p3' | 'p4'
+  name: string
+  headPointImage: [number, number]
+}
+
+export interface RoundnetSlotSeedsV1 {
+  schemaVersion: 'roundnet-slot-seeds-v1'
+  seedFrame: number
+  video: {
+    width: number
+    height: number
+    fps: number
+  }
+  slots: SlotSeed[]
 }

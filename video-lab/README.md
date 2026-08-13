@@ -8,8 +8,10 @@ It does **not** reuse the old browser MediaPipe annotate flow.
 1. Processes one session video offline.
 2. Produces 4 persistent player identities (`p1..p4`) across the clip using:
    - detector + MOT (BoT-SORT),
-   - motion gating,
-   - appearance embeddings (head/torso color histograms).
+   - fixed 4-slot identity layer (never mints slot 5),
+   - user tap-to-name slot seeding,
+   - head/hat-first appearance matching (caps/boonie prioritized over white shirts),
+   - occlusion memory with no ID theft.
 3. Computes ground-plane distance in feet from **ankle/foot points** (not hips), using net diameter = 3 ft for scale.
 4. Writes JSON for a new web review page at `/video-lab/review`.
 
@@ -28,7 +30,22 @@ source .venv-video-lab/bin/activate
 pip install -r video-lab/requirements.txt
 ```
 
-## Step 1: mark net points once (clockwise on rim)
+## Step 1 (required): tap-to-name identity slots
+
+1. Run the Next.js app:
+   ```bash
+   npm run dev
+   ```
+2. Open: `http://localhost:3000/video-lab/setup`
+3. Pause on frame 0 (or a clear early frame), then:
+   - select `p1..p4`
+   - tap each player’s **head/hat**
+   - assign name text
+4. Export `roundnet-slot-seeds.json` (contains `seedFrame` + 4 slots).
+
+This seed file is required for stable identity persistence in milestone 1.
+
+## Step 2: mark net points once (clockwise on rim)
 
 ```bash
 python video-lab/mark_net_points.py \
@@ -40,24 +57,25 @@ python video-lab/mark_net_points.py \
 - Press `s` to save.
 - Press `r` to reset.
 
-## Step 2: process the video offline
+## Step 3: process the video offline
 
 ```bash
 python video-lab/track_roundnet_session.py \
   --video ~/Desktop/IMG_3742.MOV \
   --output video-lab/output/img_3742.tracking.json \
+  --slot-seeds-file video-lab/output/roundnet-slot-seeds.json \
   --net-points-file video-lab/output/net_points.json \
-  --player-names left,far,near,right \
   --write-first-frame video-lab/output/img_3742.first-frame.jpg
 ```
 
 ### Notes
 
-- `--player-names` assumes the first stable frame is ordered left-to-right.
+- With slot seeds, names come from the setup export.
 - If no net points are supplied, tracking still works but `distanceFeetByPlayer` is `null`.
 - Do not commit large videos; only commit scripts/docs/small JSON fixtures when needed.
+- Two-people-in-one-box guard: implausibly wide detections are split via a secondary detector or rejected.
 
-## Step 3: review in web UI
+## Step 4: review in web UI
 
 1. Run the Next.js app:
    ```bash
@@ -92,4 +110,5 @@ Top-level fields in output JSON:
 
 - The tracker keeps exactly four persistent identity slots after bootstrap.
 - During occlusions or uncertain matches, it leaves gaps instead of stealing another player ID.
+- Occluded slots stay alive in memory (with predicted hidden location) across multi-second gaps.
 - Distance accumulation uses smoothing + minimum movement threshold + max speed gate to suppress jitter/shadow noise.
