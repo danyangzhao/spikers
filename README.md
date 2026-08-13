@@ -83,6 +83,13 @@ npm run db:studio   # Open Prisma Studio
 - `components/` - shared UI components
 - `lib/` - core business logic and utilities
 - `prisma/` - schema and seeds
+- `video-lab/` - isolated offline video tracking v2 tooling and docs
+
+## Video Lab (Tracking v2 milestone)
+
+For the from-scratch roundnet tracking milestone (offline processing + review UI), see:
+
+- `video-lab/README.md`
 
 ## License
 

@@ -42,3 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# video lab local artifacts
+video-lab/output/
+video-lab/__pycache__/
+*.pyc
